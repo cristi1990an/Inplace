@@ -80,6 +80,15 @@ impl<T, const N: usize> InplaceVector<T, N> {
         unsafe { std::slice::from_raw_parts_mut(ptr, len) }
     }
 
+    /// Pushes a new value into the vector without checking that capacity is not exceeded.
+    /// This is a low-level operation that can be used to optimize multiple push calls when 
+    /// the final size is known by the user to not exceed the total capacity.
+    ///
+    /// # Safety
+    ///
+    /// - len should be less than capacity.
+    /// - undefined behavior otherwise.
+    ///
     pub unsafe fn unchecked_push(&mut self, value: T) {
         let uninit_tail = self.spare_capacity_mut().get_unchecked_mut(0);
         uninit_tail.write(value);
@@ -154,6 +163,15 @@ impl<T, const N: usize> InplaceVector<T, N> {
         }
     }
 
+    /// Pops the last value from the vector without checking that the vector is not empty.
+    /// This is a low-level operation that can be used to optimize a pop call when 
+    /// the user knows for sure that the vector is not empty.
+    ///
+    /// # Safety
+    ///
+    /// - vector should not be empty.
+    /// - undefined behavior otherwise.
+    ///
     pub unsafe fn unchecked_pop(&mut self) -> T {
         let last_uninit = self.data.get_unchecked_mut(self.size - 1);
         let last = last_uninit.assume_init_read();
@@ -718,9 +736,6 @@ impl<T, const N: usize> Default for IntoIter<T, N> {
 impl<T: Clone, const N: usize> Clone for IntoIter<T, N> {
     fn clone(&self) -> Self {
         let mut result = Self::default();
-        // for value in self.as_slice() {
-        //     unsafe { result.unchecked_push(value.clone()) };
-        // }
         unsafe {
             std::ptr::copy_nonoverlapping(
                 self.as_ptr().add(self.begin),
