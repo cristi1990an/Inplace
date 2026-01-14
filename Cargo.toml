@@ -1,0 +1,14 @@
+[package]
+name = "inplace"
+version = "0.1.0"
+edition = "2021"
+description = "In-place, fixed-capacity containers with optional features"
+license = "MIT OR Apache-2.0"
+
+[features]
+default = ["all"]
+
+all = ["inplace_vector", "inplace_string"]
+
+inplace_vector = []
+inplace_string = []
