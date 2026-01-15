@@ -81,7 +81,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Pushes a new value into the vector without checking that capacity is not exceeded.
-    /// This is a low-level operation that can be used to optimize multiple push calls when 
+    /// This is a low-level operation that can be used to optimize multiple push calls when
     /// the final size is known by the user to not exceed the total capacity.
     ///
     /// # Safety
@@ -164,7 +164,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Pops the last value from the vector without checking that the vector is not empty.
-    /// This is a low-level operation that can be used to optimize a pop call when 
+    /// This is a low-level operation that can be used to optimize a pop call when
     /// the user knows for sure that the vector is not empty.
     ///
     /// # Safety
@@ -754,7 +754,6 @@ impl<T, const N: usize> AsRef<[T]> for IntoIter<T, N> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::inplace_vec;
@@ -903,7 +902,7 @@ mod tests {
 
         let mut v2 = InplaceVector::<i32, 4>::new();
         for i in 0..4 {
-            v2.push(i as i32);
+            v2.push(i);
         }
         let o2 = v2.split_off(0);
         assert_eq!(v2.as_slice(), &[]);
@@ -911,7 +910,7 @@ mod tests {
 
         let mut v3 = InplaceVector::<i32, 4>::new();
         for i in 0..3 {
-            v3.push(i as i32);
+            v3.push(i);
         }
         let o3 = v3.split_off(3);
         assert_eq!(v3.as_slice(), &[0, 1, 2]);

@@ -1,4 +1,3 @@
-
 #[macro_export]
 macro_rules! __count {
     () => { 0usize };
@@ -54,4 +53,3 @@ macro_rules! inplace_vec {
     }};
 
 }
-

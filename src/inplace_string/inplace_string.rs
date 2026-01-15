@@ -146,7 +146,7 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Pushes a new char into the string without checking that capacity is not exceeded.
-    /// This is a low-level operation that can be used to optimize multiple push calls when 
+    /// This is a low-level operation that can be used to optimize multiple push calls when
     /// the final size is known by the user to not exceed the total capacity.
     ///
     /// # Safety
@@ -182,7 +182,7 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Appends the slice into the string without checking that capacity is not exceeded.
-    /// This is a low-level operation that can be used to optimize multiple unchecked_push_str calls when 
+    /// This is a low-level operation that can be used to optimize multiple unchecked_push_str calls when
     /// the final size is known by the user to not exceed the total capacity.
     ///
     /// # Safety
@@ -223,7 +223,7 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Inserts a new char into the string without checking that capacity is not exceeded.
-    /// This is a low-level operation that can be used to optimize multiple insert calls when 
+    /// This is a low-level operation that can be used to optimize multiple insert calls when
     /// the final size is known by the user to not exceed the total capacity.
     ///
     /// # Safety
@@ -263,7 +263,7 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Inserts the slice into the string without checking that capacity is not exceeded.
-    /// This is a low-level operation that can be used to optimize multiple insert calls when 
+    /// This is a low-level operation that can be used to optimize multiple insert calls when
     /// the final size is known by the user to not exceed the total capacity.
     ///
     /// # Safety
@@ -313,7 +313,8 @@ impl<const N: usize> InplaceString<N> {
     }
 
     pub fn extend_from_within<R>(&mut self, src: R)
-    where R: RangeBounds<usize>
+    where
+        R: RangeBounds<usize>,
     {
         let len = self.len();
 
@@ -345,11 +346,7 @@ impl<const N: usize> InplaceString<N> {
         unsafe {
             let ptr = self.as_mut_ptr();
 
-            ptr::copy(
-                ptr.add(start),
-                ptr.add(len),
-                count,
-            );
+            ptr::copy(ptr.add(start), ptr.add(len), count);
             self.set_len(new_len);
         }
     }
@@ -394,10 +391,20 @@ impl<const N: usize> InplaceString<N> {
         }
     }
 
-    pub unsafe fn from_utf8_unchecked(bytes: &[u8]) -> Self
-    {
+    /// Converts a slice of bytes to a string slice without checking that the string contains valid UTF-8.
+    ///
+    // This is an alias to str::from_utf8_unchecked.
+    ///
+    /// See the safe version, from_utf8, for more information.
+    ///
+    /// # Safety
+    /// The bytes passed in must be valid UTF-8.
+    ///
+    pub unsafe fn from_utf8_unchecked(bytes: &[u8]) -> Self {
         if bytes.len() > N {
-            panic!("Length of array passed to from_utf8_unchecked would exceed InplaceString capacity");
+            panic!(
+                "Length of array passed to from_utf8_unchecked would exceed InplaceString capacity"
+            );
         }
 
         let mut result = Self::new();
@@ -408,8 +415,7 @@ impl<const N: usize> InplaceString<N> {
         result
     }
 
-    pub fn into_bytes(self) -> InplaceVector<u8, N>
-    {
+    pub fn into_bytes(self) -> InplaceVector<u8, N> {
         let mut result = InplaceVector::new();
 
         unsafe {
@@ -429,7 +435,11 @@ impl<const N: usize> InplaceString<N> {
         let next = idx + ch.len_utf8();
         let len = self.len();
         unsafe {
-            std::ptr::copy(self.as_ptr().add(next), self.as_mut_ptr().add(idx), len - next);
+            std::ptr::copy(
+                self.as_ptr().add(next),
+                self.as_mut_ptr().add(idx),
+                len - next,
+            );
             self.set_len(len - (next - idx));
         }
 
@@ -505,8 +515,7 @@ impl<const N: usize> TryFrom<char> for InplaceString<N> {
     }
 }
 
-impl<const N: usize> TryFrom<InplaceVector<u8, N>> for InplaceString<N>
-{
+impl<const N: usize> TryFrom<InplaceVector<u8, N>> for InplaceString<N> {
     type Error = std::str::Utf8Error;
 
     fn try_from(value: InplaceVector<u8, N>) -> Result<Self, Self::Error> {
@@ -547,22 +556,19 @@ impl<const N: usize> Hash for InplaceString<N> {
     }
 }
 
-impl<const N: usize> PartialOrd for InplaceString<N>
-{
+impl<const N: usize> PartialOrd for InplaceString<N> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.as_str().partial_cmp(other)
+        Some(self.cmp(other))
     }
 }
 
-impl<const N: usize> Ord for InplaceString<N>
-{
+impl<const N: usize> Ord for InplaceString<N> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_str().cmp(other)
     }
 }
 
-impl<const N: usize> Write for InplaceString<N>
-{
+impl<const N: usize> Write for InplaceString<N> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         self.try_push_str(s).map_err(|_| std::fmt::Error)?;
         Ok(())
@@ -636,8 +642,7 @@ impl<const N: usize> Default for InplaceString<N> {
 //     }
 // }
 
-impl<const N: usize> Add<&str> for InplaceString<N>
-{
+impl<const N: usize> Add<&str> for InplaceString<N> {
     type Output = InplaceString<N>;
 
     fn add(mut self, rhs: &str) -> Self::Output {
@@ -660,8 +665,7 @@ impl<const N: usize> AsMut<str> for InplaceString<N> {
 
 impl<const N: usize> Debug for InplaceString<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct(concat!(
-            "InplaceString<", stringify!(N), ">"))
+        f.debug_struct(concat!("InplaceString<", stringify!(N), ">"))
             .field("string", &self.as_str())
             .field("size", &self.size)
             .finish()
@@ -710,7 +714,6 @@ impl<'a, const N: usize> Extend<&'a str> for InplaceString<N> {
 
 impl<const N: usize> Eq for InplaceString<N> {}
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -724,7 +727,7 @@ mod tests {
         assert!(s.is_empty());
         assert_eq!(s.capacity(), CAP);
         assert_eq!(s.remaining_capacity(), CAP);
-        assert!(s.is_full() == false);
+        assert!(!s.is_full());
     }
 
     #[test]
