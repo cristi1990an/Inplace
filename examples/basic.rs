@@ -1,4 +1,4 @@
-use InplaceContainers::*;
+use inplace_containers::*;
 
 fn main() {
     let str = inplace_string!("test");

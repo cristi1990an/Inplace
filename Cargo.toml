@@ -1,5 +1,5 @@
 [package]
-name = "InplaceContainers"
+name = "inplace_containers"
 version = "0.1.1"
 edition = "2021"
 description = "In-place, fixed-capacity containers with optional features"
