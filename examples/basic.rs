@@ -8,6 +8,6 @@ fn main() {
         "3".to_owned(),
         "4".to_owned());
 
-    println!("{str}");
+    println!("{str:?}");
     println!("{vec:?}");
 }

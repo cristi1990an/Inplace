@@ -23,5 +23,9 @@ macro_rules! inplace_string {
 
 #[test]
 fn foo() {
-    //let _ = inplace_string!("test");
+    let string = inplace_string!("test");
+
+    assert_eq!(string.capacity(), 4);
+    assert_eq!(string.len(), 4);
+    assert_eq!(string, "test");
 }

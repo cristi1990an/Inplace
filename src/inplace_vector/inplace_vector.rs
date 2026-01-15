@@ -754,11 +754,13 @@ impl<T, const N: usize> AsRef<[T]> for IntoIter<T, N> {
     }
 }
 
+
+#[cfg(test)]
 mod tests {
     use crate::inplace_vec;
     use core::cell::Cell;
 
-    use super::InplaceVector;
+    use super::*;
 
     #[test]
     fn test_iter_clone() {

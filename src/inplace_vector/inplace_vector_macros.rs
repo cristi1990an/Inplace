@@ -1,3 +1,12 @@
+
+#[macro_export]
+macro_rules! __count {
+    () => { 0usize };
+    ($head:expr $(, $tail:expr)*) => {
+        1usize + $crate::__count!($($tail),*)
+    };
+}
+
 #[macro_export]
 macro_rules! inplace_vec {
     () => {
@@ -15,7 +24,7 @@ macro_rules! inplace_vec {
 
 
     ($cap:expr; $($elem:expr),+ $(,)?) => {{
-        const COUNT: usize = $crate::count!($($elem),*);
+        const COUNT: usize = $crate::__count!($($elem),*);
         const _: () = assert!(
             $cap >= COUNT,
             concat!(
@@ -46,8 +55,3 @@ macro_rules! inplace_vec {
 
 }
 
-#[macro_export]
-macro_rules! count {
-    () => { 0 };
-    ($head:expr $(, $tail:expr)*) => { 1 + $crate::count!($($tail),*) };
-}

@@ -53,12 +53,14 @@ mod details {
 
 use core::fmt;
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Write},
     hash::Hash,
-    ops::{Deref, DerefMut},
+    ops::{Add, AddAssign, Deref, DerefMut, RangeBounds},
     ptr,
     str::FromStr,
 };
+
+use crate::InplaceVector;
 
 #[derive(Clone, Copy)]
 pub struct InplaceString<const N: usize> {
@@ -156,7 +158,7 @@ impl<const N: usize> InplaceString<N> {
         let len = self.len();
         let ch_len = ch.len_utf8();
         unsafe {
-            details::encode_utf8_raw_unchecked(ch as u32, self.as_mut_ptr().add(self.len()));
+            details::encode_utf8_raw_unchecked(ch as u32, self.data.as_mut_ptr().add(self.len()));
             self.set_len(len + ch_len);
         }
     }
@@ -191,9 +193,9 @@ impl<const N: usize> InplaceString<N> {
     pub unsafe fn unchecked_push_str(&mut self, string: &str) {
         let string_len = string.len();
         unsafe {
-            ptr::copy(
+            std::ptr::copy(
                 string.as_ptr(),
-                self.as_mut_ptr().add(self.size),
+                self.data.as_mut_ptr().add(self.size),
                 string_len,
             );
             self.set_len(self.size + string_len);
@@ -237,11 +239,11 @@ impl<const N: usize> InplaceString<N> {
 
         unsafe {
             ptr::copy(
-                self.as_ptr().add(idx),
-                self.as_mut_ptr().add(idx + ch_len),
+                self.data.as_ptr().add(idx),
+                self.data.as_mut_ptr().add(idx + ch_len),
                 len - idx,
             );
-            details::encode_utf8_raw_unchecked(ch as u32, self.as_mut_ptr().add(idx));
+            details::encode_utf8_raw_unchecked(ch as u32, self.data.as_mut_ptr().add(idx));
             self.set_len(len + ch_len);
         }
     }
@@ -310,6 +312,48 @@ impl<const N: usize> InplaceString<N> {
         self.try_insert(idx, ch).unwrap();
     }
 
+    pub fn extend_from_within<R>(&mut self, src: R)
+    where R: RangeBounds<usize>
+    {
+        let len = self.len();
+
+        // resolve start bound
+        let start = match src.start_bound() {
+            std::ops::Bound::Included(&i) => i,
+            std::ops::Bound::Excluded(&i) => i + 1,
+            std::ops::Bound::Unbounded => 0,
+        };
+
+        // resolve end bound
+        let end = match src.end_bound() {
+            std::ops::Bound::Included(&i) => i + 1,
+            std::ops::Bound::Excluded(&i) => i,
+            std::ops::Bound::Unbounded => len,
+        };
+
+        assert!(start <= end, "range start > end");
+        assert!(end <= len, "range end out of bounds");
+
+        assert!(self.is_char_boundary(start));
+        assert!(self.is_char_boundary(end));
+
+        let count = end - start;
+        let new_len = len.checked_add(count).expect("overflow");
+
+        assert!(new_len <= N, "InplaceString capacity exceeded");
+
+        unsafe {
+            let ptr = self.as_mut_ptr();
+
+            ptr::copy(
+                ptr.add(start),
+                ptr.add(len),
+                count,
+            );
+            self.set_len(new_len);
+        }
+    }
+
     /// Forces the length of the string to new_len.
     /// This is a low-level operation that maintains none of the normal invariants of the type.
     ///
@@ -348,6 +392,48 @@ impl<const N: usize> InplaceString<N> {
             Ok(str) => Self::try_from(str).map_err(InplaceUtf8Error::InplaceError),
             Err(err) => Err(InplaceUtf8Error::Utf8Error(err)),
         }
+    }
+
+    pub unsafe fn from_utf8_unchecked(bytes: &[u8]) -> Self
+    {
+        if bytes.len() > N {
+            panic!("Length of array passed to from_utf8_unchecked would exceed InplaceString capacity");
+        }
+
+        let mut result = Self::new();
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), result.data.as_mut_ptr(), bytes.len());
+            result.set_len(bytes.len());
+        }
+        result
+    }
+
+    pub fn into_bytes(self) -> InplaceVector<u8, N>
+    {
+        let mut result = InplaceVector::new();
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(self.as_ptr(), result.as_mut_ptr(), self.len());
+            result.set_len(self.len());
+        }
+
+        result
+    }
+
+    pub fn remove(&mut self, idx: usize) -> char {
+        let ch = match self[idx..].chars().next() {
+            Some(ch) => ch,
+            None => panic!("cannot remove a char from the end of a string"),
+        };
+
+        let next = idx + ch.len_utf8();
+        let len = self.len();
+        unsafe {
+            std::ptr::copy(self.as_ptr().add(next), self.as_mut_ptr().add(idx), len - next);
+            self.set_len(len - (next - idx));
+        }
+
+        ch
     }
 }
 
@@ -392,6 +478,14 @@ impl<const N: usize> TryFrom<&mut str> for InplaceString<N> {
     }
 }
 
+impl<const N: usize> TryFrom<String> for InplaceString<N> {
+    type Error = InplaceError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.try_into()
+    }
+}
+
 impl<const N: usize> TryFrom<char> for InplaceString<N> {
     type Error = InplaceError;
 
@@ -407,6 +501,24 @@ impl<const N: usize> TryFrom<char> for InplaceString<N> {
 
         let mut result = Self::new();
         unsafe { result.unchecked_push(value) };
+        Ok(result)
+    }
+}
+
+impl<const N: usize> TryFrom<InplaceVector<u8, N>> for InplaceString<N>
+{
+    type Error = std::str::Utf8Error;
+
+    fn try_from(value: InplaceVector<u8, N>) -> Result<Self, Self::Error> {
+        let str = std::str::from_utf8(&value)?;
+
+        let mut result = InplaceString::new();
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(str.as_ptr(), result.as_mut_ptr(), str.len());
+            result.set_len(str.len());
+        };
+
         Ok(result)
     }
 }
@@ -432,6 +544,28 @@ impl<const N: usize> FromStr for InplaceString<N> {
 impl<const N: usize> Hash for InplaceString<N> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state);
+    }
+}
+
+impl<const N: usize> PartialOrd for InplaceString<N>
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.as_str().partial_cmp(other)
+    }
+}
+
+impl<const N: usize> Ord for InplaceString<N>
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_str().cmp(other)
+    }
+}
+
+impl<const N: usize> Write for InplaceString<N>
+{
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.try_push_str(s).map_err(|_| std::fmt::Error)?;
+        Ok(())
     }
 }
 
@@ -493,6 +627,37 @@ impl<const N: usize> Default for InplaceString<N> {
     }
 }
 
+// impl<const Lhs: usize, const Rhs: usize> Add<InplaceString<Lhs>> for InplaceString<Rhs>
+// {
+//     type Output = InplaceString<{Lhs + Rhs}>;
+
+//     fn add(self, rhs: InplaceString<Lhs>) -> Self::Output {
+//         todo!()
+//     }
+// }
+
+impl<const N: usize> Add<&str> for InplaceString<N>
+{
+    type Output = InplaceString<N>;
+
+    fn add(mut self, rhs: &str) -> Self::Output {
+        self.push_str(rhs);
+        self
+    }
+}
+
+impl<const N: usize> AddAssign<&str> for InplaceString<N> {
+    fn add_assign(&mut self, rhs: &str) {
+        self.push_str(rhs);
+    }
+}
+
+impl<const N: usize> AsMut<str> for InplaceString<N> {
+    fn as_mut(&mut self) -> &mut str {
+        self.as_mut_str()
+    }
+}
+
 impl<const N: usize> Debug for InplaceString<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(&format!("InplaceString<{N}>"))
@@ -514,6 +679,34 @@ impl<const N: usize> PartialEq for InplaceString<N> {
     }
 }
 
+impl <const N: usize> PartialEq<InplaceString<N>> for &str
+{
+    fn eq(&self, other: &InplaceString<N>) -> bool {
+        self.eq(&other.as_str())
+    }
+}
+
+impl <const N: usize> PartialEq<InplaceString<N>> for str
+{
+    fn eq(&self, other: &InplaceString<N>) -> bool {
+        other.eq(&self)
+    }
+}
+
+impl <const N: usize> PartialEq<&str> for InplaceString<N>
+{
+    fn eq(&self, other: &&str) -> bool {
+        other.eq(self)
+    }
+}
+
+impl <const N: usize> PartialEq<&str> for &InplaceString<N>
+{
+    fn eq(&self, other: &&str) -> bool {
+        other.eq(*self)
+    }
+}
+
 impl<const N: usize> Extend<char> for InplaceString<N> {
     fn extend<T: IntoIterator<Item = char>>(&mut self, iter: T) {
         for ch in iter {
@@ -531,3 +724,221 @@ impl<'a, const N: usize> Extend<&'a str> for InplaceString<N> {
 }
 
 impl<const N: usize> Eq for InplaceString<N> {}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CAP: usize = 32;
+
+    #[test]
+    fn test_new_and_basic_properties() {
+        let s: InplaceString<CAP> = InplaceString::new();
+        assert_eq!(s.len(), 0);
+        assert!(s.is_empty());
+        assert_eq!(s.capacity(), CAP);
+        assert_eq!(s.remaining_capacity(), CAP);
+        assert!(s.is_full() == false);
+    }
+
+    #[test]
+    fn test_push_and_try_push() {
+        let mut s: InplaceString<CAP> = InplaceString::new();
+        s.push('a');
+        assert_eq!(s.as_str(), "a");
+
+        s.try_push('β').unwrap();
+        assert_eq!(s.as_str(), "aβ");
+
+        let mut s: InplaceString<1> = InplaceString::new();
+        let err = s.try_push('β').unwrap_err();
+        assert_eq!(err.current_size, 0);
+        assert_eq!(err.required_capacity, 2);
+    }
+
+    #[test]
+    fn test_push_str_and_try_push_str() {
+        let mut s: InplaceString<CAP> = InplaceString::new();
+        s.push_str("hello");
+        assert_eq!(s.as_str(), "hello");
+
+        s.try_push_str(" world").unwrap();
+        assert_eq!(s.as_str(), "hello world");
+
+        let mut s: InplaceString<5> = InplaceString::new();
+        let err = s.try_push_str("toolong").unwrap_err();
+        assert_eq!(err.required_capacity, 7);
+    }
+
+    #[test]
+    fn test_insert_and_insert_str() {
+        let mut s: InplaceString<CAP> = InplaceString::new();
+        s.push_str("ac");
+        s.insert(1, 'b');
+        assert_eq!(s, "abc");
+
+        s.insert_str(1, "XYZ");
+        assert_eq!(s, "aXYZbc");
+    }
+
+    #[test]
+    fn test_unchecked_push_and_insert() {
+        let mut s: InplaceString<CAP> = InplaceString::new();
+        unsafe {
+            s.unchecked_push('α');
+            s.unchecked_push('β');
+            s.unchecked_insert(2, 'γ');
+        }
+        assert_eq!(s.as_str(), "αγβ");
+    }
+
+    #[test]
+    fn test_pop_and_remove() {
+        let mut s: InplaceString<CAP> = InplaceString::new();
+        s.push_str("aβγ");
+        let ch = s.pop().unwrap();
+        assert_eq!(ch, 'γ');
+        assert_eq!(s.as_str(), "aβ");
+
+        let removed = s.remove(1);
+        assert_eq!(removed, 'β');
+        assert_eq!(s.as_str(), "a");
+    }
+
+    #[test]
+    fn test_clear_and_is_empty() {
+        let mut s: InplaceString<CAP> = InplaceString::new();
+        s.push_str("test");
+        assert!(!s.is_empty());
+        s.clear();
+        assert!(s.is_empty());
+        assert_eq!(s.len(), 0);
+    }
+
+    #[test]
+    fn test_from_utf8() {
+        let bytes = "hello β".as_bytes();
+        let s: InplaceString<CAP> = InplaceString::from_utf8(bytes).unwrap();
+        assert_eq!(s.as_str(), "hello β");
+
+        let invalid_bytes = &[0xFF, 0xFF];
+        let err = InplaceString::<CAP>::from_utf8(invalid_bytes).unwrap_err();
+        match err {
+            InplaceUtf8Error::Utf8Error(_) => {}
+            _ => panic!("Expected Utf8Error"),
+        }
+    }
+
+    #[test]
+    fn test_from_utf8_unchecked() {
+        let bytes = "αβγ".as_bytes();
+        let s = unsafe { InplaceString::<CAP>::from_utf8_unchecked(bytes) };
+        assert_eq!(s.as_str(), "αβγ");
+    }
+
+    #[test]
+    fn test_try_from_various() {
+        let s: InplaceString<CAP> = "hello".try_into().unwrap();
+        assert_eq!(s, "hello");
+
+        let ch: InplaceString<CAP> = 'β'.try_into().unwrap();
+        assert_eq!(ch, "β");
+
+        let string: String = "world".into();
+        let s2: InplaceString<CAP> = string.try_into().unwrap();
+        assert_eq!(s2, "world");
+    }
+
+    #[test]
+    fn test_into_bytes() {
+        let s: InplaceString<CAP> = "hello β".try_into().unwrap();
+        let v = s.into_bytes();
+        assert_eq!(v.as_slice(), "hello β".as_bytes());
+    }
+
+    #[test]
+    fn test_extend() {
+        let mut s: InplaceString<CAP> = InplaceString::new();
+        s.extend(['a', 'β', 'γ']);
+        assert_eq!(s.as_str(), "aβγ");
+
+        s.extend(["X", "Y"]);
+        assert_eq!(s.as_str(), "aβγXY");
+    }
+
+    #[test]
+    fn test_deref_and_index() {
+        let s: InplaceString<CAP> = "hello".try_into().unwrap();
+        assert_eq!(&*s, "hello");
+        assert_eq!(&s[1..4], "ell");
+    }
+
+    #[test]
+    fn test_debug_display_hash() {
+        let s: InplaceString<CAP> = "hash_test".try_into().unwrap();
+        let debug = format!("{:?}", s);
+        assert!(debug.contains("hash_test"));
+        let display = format!("{}", s);
+        assert_eq!(display, "hash_test");
+
+        use std::collections::hash_map::DefaultHasher;
+        let mut hasher = DefaultHasher::new();
+        s.hash(&mut hasher);
+    }
+
+    #[test]
+    fn test_partial_eq_and_ord() {
+        let s1: InplaceString<CAP> = "abc".try_into().unwrap();
+        let s2: InplaceString<CAP> = "abc".try_into().unwrap();
+        let s3: InplaceString<CAP> = "xyz".try_into().unwrap();
+
+        assert_eq!(s1, s2);
+        assert!(s1 < s3);
+
+        let r: &str = "abc";
+        assert_eq!(r, &s1);
+        assert_eq!(s1, r);
+    }
+
+    #[test]
+    fn test_add_and_add_assign() {
+        let s1: InplaceString<CAP> = "foo".try_into().unwrap();
+        dbg!(s1);
+        let s2 = s1 + "bar";
+        assert_eq!(s2.as_str(), "foobar");
+        dbg!(s2);
+        let mut s3: InplaceString<CAP> = "foo".try_into().unwrap();
+        s3 += "bar";
+        assert_eq!(s3.as_str(), "foobar");
+        dbg!(s3);
+    }
+
+    #[test]
+    fn test_extend_from_within() {
+        let mut string = String::from("abcde");
+
+        string.extend_from_within(2..);
+        assert_eq!(string, "abcdecde");
+
+        string.extend_from_within(..2);
+        assert_eq!(string, "abcdecdeab");
+
+        string.extend_from_within(4..8);
+        assert_eq!(string, "abcdecdeabecde");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_extend_from_within_out_of_bounds() {
+        let mut s: InplaceString<CAP> = "abc".try_into().unwrap();
+        s.extend_from_within(0..10); // panic: end out of bounds
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_unchecked_push_overflow() {
+        let mut s: InplaceString<1> = InplaceString::new();
+        s.push('β'); // would exceed capacity
+    }
+}
