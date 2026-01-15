@@ -474,7 +474,7 @@ impl<const N: usize> TryFrom<&mut str> for InplaceString<N> {
     type Error = InplaceError;
 
     fn try_from(value: &mut str) -> Result<Self, Self::Error> {
-        value.try_into()
+        (value as &str).try_into()
     }
 }
 
@@ -482,7 +482,7 @@ impl<const N: usize> TryFrom<String> for InplaceString<N> {
     type Error = InplaceError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        value.try_into()
+        value.as_str().try_into()
     }
 }
 
@@ -660,7 +660,8 @@ impl<const N: usize> AsMut<str> for InplaceString<N> {
 
 impl<const N: usize> Debug for InplaceString<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct(&format!("InplaceString<{N}>"))
+        f.debug_struct(concat!(
+            "InplaceString<", stringify!(N), ">"))
             .field("string", &self.as_str())
             .field("size", &self.size)
             .finish()
@@ -679,31 +680,15 @@ impl<const N: usize> PartialEq for InplaceString<N> {
     }
 }
 
-impl <const N: usize> PartialEq<InplaceString<N>> for &str
-{
+impl<const N: usize> PartialEq<InplaceString<N>> for &str {
     fn eq(&self, other: &InplaceString<N>) -> bool {
-        self.eq(&other.as_str())
+        *self == other.as_str()
     }
 }
 
-impl <const N: usize> PartialEq<InplaceString<N>> for str
-{
-    fn eq(&self, other: &InplaceString<N>) -> bool {
-        other.eq(&self)
-    }
-}
-
-impl <const N: usize> PartialEq<&str> for InplaceString<N>
-{
+impl<const N: usize> PartialEq<&str> for InplaceString<N> {
     fn eq(&self, other: &&str) -> bool {
-        other.eq(self)
-    }
-}
-
-impl <const N: usize> PartialEq<&str> for &InplaceString<N>
-{
-    fn eq(&self, other: &&str) -> bool {
-        other.eq(*self)
+        self.as_str() == *other
     }
 }
 
@@ -730,7 +715,7 @@ impl<const N: usize> Eq for InplaceString<N> {}
 mod tests {
     use super::*;
 
-    const CAP: usize = 32;
+    const CAP: usize = 16;
 
     #[test]
     fn test_new_and_basic_properties() {
@@ -897,7 +882,7 @@ mod tests {
         assert!(s1 < s3);
 
         let r: &str = "abc";
-        assert_eq!(r, &s1);
+        assert_eq!(&r, &s1);
         assert_eq!(s1, r);
     }
 
