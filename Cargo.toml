@@ -1,12 +1,12 @@
 [package]
 name = "inplace_containers"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2021"
 description = "In-place, fixed-capacity containers with optional features"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/cristi1990an/Inplace"
 homepage = "https://github.com/cristi1990an/Inplace"
-documentation = "https://docs.rs/inplace"
+documentation = "https://docs.rs/inplace_containers/latest/inplace_containers/"
 
 
 [features]

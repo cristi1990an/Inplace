@@ -119,17 +119,6 @@ let s = inplace_string!("hello");
 
 ---
 
-## Installation
-
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-inplace_containers = "0.1.3"
-```
-
----
-
 ## Safety Notes
 
 - `unsafe` is used internally for performance.
