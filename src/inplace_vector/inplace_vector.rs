@@ -4,7 +4,7 @@ use std::{
     hash::Hash,
     iter::FusedIterator,
     mem::MaybeUninit,
-    ops::{Deref, DerefMut, Index, IndexMut},
+    ops::{Deref, DerefMut, Index, IndexMut, RangeBounds},
     ptr,
     slice::SliceIndex,
 };
@@ -83,34 +83,195 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// Pushes a new value into the vector without checking that capacity is not exceeded.
     /// This is a low-level operation that can be used to optimize multiple push calls when
     /// the final size is known by the user to not exceed the total capacity.
+    /// /// Return a reference to the newly added element.
     ///
     /// # Safety
     ///
     /// - len should be less than capacity.
     /// - undefined behavior otherwise.
     ///
-    pub unsafe fn unchecked_push(&mut self, value: T) {
+    pub unsafe fn unchecked_push(&mut self, value: T) -> &T {
         let uninit_tail = self.spare_capacity_mut().get_unchecked_mut(0);
         uninit_tail.write(value);
         self.set_len(self.len() + 1);
+        self.get_unchecked(self.len() - 1)
     }
 
-    pub fn push(&mut self, value: T) {
+    /// Appends an element to the back of the vector and returns a reference to it.
+    ///
+    /// # Panics
+    /// Panics if the new size exceeds the vector's capacity (is_full == true).
+    ///
+    pub fn push(&mut self, value: T) -> &T {
         if self.is_full() {
             panic!("InplaceVector push should not exceed capacity");
         }
 
-        unsafe { self.unchecked_push(value) };
+        unsafe { self.unchecked_push(value) }
     }
 
-    pub fn push_within_capacity(&mut self, value: T) -> Result<(), T> {
+    /// Pushes a new value into the vector only if capacity allows it (is_full == false).
+    /// Returns a Result with value Ok with a reference to the new element added at the end of the vector
+    /// or value Err containing the value that was not inserted.
+    ///
+    pub fn push_within_capacity(&mut self, value: T) -> Result<&T, T> {
         if self.is_full() {
             Err(value)
         } else {
-            unsafe {
-                self.unchecked_push(value);
-            }
+            unsafe { Ok(self.unchecked_push(value)) }
+        }
+    }
+
+    /// Pushes a new value into the vector without checking that capacity is not exceeded.
+    /// This is a low-level operation that can be used to optimize multiple push calls when
+    /// the final size is known by the user to not exceed the total capacity.
+    /// Return a mutable reference to the newly added element.
+    ///
+    /// # Safety
+    ///
+    /// - len should be less than capacity.
+    /// - undefined behavior otherwise.
+    ///
+    pub unsafe fn unchecked_push_mut(&mut self, value: T) -> &mut T {
+        let uninit_tail = self.spare_capacity_mut().get_unchecked_mut(0);
+        uninit_tail.write(value);
+        let new_len = self.len() + 1;
+        self.set_len(new_len);
+        self.get_unchecked_mut(new_len)
+    }
+
+    /// Appends an element to the back of the vector and returns a mutable reference to it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new size exceeds the vector's capacity (is_full == true).
+    ///
+    pub fn push_mut(&mut self, value: T) -> &mut T {
+        if self.is_full() {
+            panic!("InplaceVector push should not exceed capacity");
+        }
+
+        unsafe { self.unchecked_push_mut(value) }
+    }
+
+    /// Pushes a new value into the vector only if capacity allows it (is_full == false).
+    /// Returns a Result with value Ok with a mutable reference to the new element added at the end of the vector
+    /// or value Err containing the value that was not inserted.
+    ///
+    pub fn push_within_capacity_mut(&mut self, value: T) -> Result<&mut T, T> {
+        if self.is_full() {
+            Err(value)
+        } else {
+            unsafe { Ok(self.unchecked_push_mut(value)) }
+        }
+    }
+
+    /// Clones and appends all elements in a slice to the vector, returning a slice to the newly added elements,
+    ///
+    /// Iterates over the slice other, clones each element, and then appends it to this vector. The other slice is traversed in-order.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the len of the slice would exceed the vector's remaining_capacity
+    ///
+    pub fn extend_from_slice(&mut self, other: &[T]) -> &[T]
+    where
+        T: Clone,
+    {
+        let old_len = self.len();
+        if other.len() > self.remaining_capacity() {
+            panic!("InplaceVector extend_from_slice should not exceed capacity");
+        }
+
+        for elem in other.iter().cloned() {
+            unsafe { self.unchecked_push(elem) };
+        }
+
+        unsafe { self.get_unchecked(old_len..self.len()) }
+    }
+
+    /// Clones and appends all elements in a slice to the vector, returning a slice to the newly added elements,
+    ///
+    /// Iterates over the slice other, clones each element, and then appends it to this vector. The other slice is traversed in-order.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the len of the slice would exceed the vector's remaining_capacity
+    ///
+    pub fn extend_from_slice_mut(&mut self, other: &[T]) -> &mut [T]
+    where
+        T: Clone,
+    {
+        let old_len = self.len();
+        if other.len() > self.remaining_capacity() {
+            panic!("InplaceVector extend_from_slice should not exceed capacity");
+        }
+
+        for elem in other.iter().cloned() {
+            unsafe { self.unchecked_push(elem) };
+        }
+
+        let new_len = self.len();
+        unsafe { self.get_unchecked_mut(old_len..new_len) }
+    }
+
+    pub fn extend_from_slice_within_capacity<'a>(&mut self, other: &'a [T]) -> Result<(), &'a [T]>
+    where
+        T: Clone,
+    {
+        let (to_clone, remaining) = other.split_at(self.remaining_capacity());
+        for elem in to_clone.iter().cloned() {
+            unsafe { self.unchecked_push(elem) };
+        }
+
+        if remaining.is_empty() {
             Ok(())
+        } else {
+            Err(remaining)
+        }
+    }
+
+    pub fn extend_from_within<R>(&mut self, src: R)
+    where
+        R: RangeBounds<usize>,
+        T: Clone,
+    {
+        let len = self.len();
+
+        let start = match src.start_bound() {
+            std::ops::Bound::Included(&i) => i,
+            std::ops::Bound::Excluded(&i) => i + 1,
+            std::ops::Bound::Unbounded => 0,
+        };
+
+        let end = match src.end_bound() {
+            std::ops::Bound::Included(&i) => i + 1,
+            std::ops::Bound::Excluded(&i) => i,
+            std::ops::Bound::Unbounded => len,
+        };
+
+        assert!(
+            start <= end && end <= len,
+            "range out of bounds: {}..{} for len {}",
+            start,
+            end,
+            len
+        );
+
+        let count = end - start;
+
+        if len + count > N {
+            panic!(
+                "extend_from_within would exceed capacity: {} + {} > {}",
+                len, count, N
+            );
+        }
+
+        for i in start..end {
+            let elem = self[i].clone();
+            unsafe {
+                self.unchecked_push(elem);
+            }
         }
     }
 
@@ -251,7 +412,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
         }
     }
 
-    pub fn insert(&mut self, index: usize, element: T) {
+    pub fn insert(&mut self, index: usize, element: T) -> &T {
         let len = self.len();
         if index > len {
             panic!("insertion index (is {index}) should be <= len (is {len})");
@@ -269,6 +430,31 @@ impl<T, const N: usize> InplaceVector<T, N> {
             ptr::write(ptr, element);
 
             self.set_len(len + 1);
+
+            ptr::read(ptr as *const &T)
+        }
+    }
+
+    pub fn insert_mut(&mut self, index: usize, element: T) -> &mut T {
+        let len = self.len();
+        if index > len {
+            panic!("insertion index (is {index}) should be <= len (is {len})");
+        }
+
+        if self.is_full() {
+            panic!("insert call should not exceed capacity of InplaceVector");
+        }
+
+        unsafe {
+            let ptr = self.as_mut_ptr().add(index);
+            if index < len {
+                std::ptr::copy(ptr, ptr.add(1), len - index);
+            }
+            ptr::write(ptr, element);
+
+            self.set_len(len + 1);
+
+            ptr::read(ptr as *const &mut T)
         }
     }
 
@@ -290,10 +476,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
         other
     }
 
-    pub fn remove(&mut self, index: usize) -> T {
+    pub fn try_remove(&mut self, index: usize) -> Option<T> {
         let len = self.len();
         if index >= len {
-            panic!("removal index (is {index}) should be < len (is {len})");
+            return None;
         }
         unsafe {
             let ret;
@@ -303,7 +489,17 @@ impl<T, const N: usize> InplaceVector<T, N> {
                 ptr::copy(ptr.add(1), ptr, len - index - 1);
             }
             self.set_len(len - 1);
-            ret
+            Some(ret)
+        }
+    }
+
+    pub fn remove(&mut self, index: usize) -> T {
+        match self.try_remove(index) {
+            Some(value) => value,
+            None => {
+                let len = self.len();
+                panic!("removal index (is {index}) should be < len (is {len})");
+            }
         }
     }
 
@@ -320,6 +516,95 @@ impl<T, const N: usize> InplaceVector<T, N> {
             self.set_len(len - 1);
             value
         }
+    }
+
+    pub fn drain<R>(&mut self, range: R) -> Self
+    where
+        R: RangeBounds<usize>,
+    {
+        use std::ops::Bound::*;
+
+        let len = self.len();
+
+        let start = match range.start_bound() {
+            Included(&i) => i,
+            Excluded(&i) => i + 1,
+            Unbounded => 0,
+        };
+
+        let end = match range.end_bound() {
+            Included(&i) => i + 1,
+            Excluded(&i) => i,
+            Unbounded => len,
+        };
+
+        if start > end || end > len {
+            panic!("drain range out of bounds");
+        }
+
+        let count = end - start;
+
+        let mut drained = Self::new();
+
+        unsafe {
+            ptr::copy_nonoverlapping(self.as_ptr().add(start), drained.as_mut_ptr(), count);
+            drained.set_len(count);
+
+            let tail = len - end;
+            if tail > 0 {
+                ptr::copy(self.as_ptr().add(end), self.as_mut_ptr().add(start), tail);
+            }
+
+            self.set_len(len - count);
+        }
+
+        drained
+    }
+
+    pub fn dedup_by<F>(&mut self, mut same_bucket: F)
+    where
+        F: FnMut(&mut T, &mut T) -> bool,
+    {
+        let len = self.len();
+        if len <= 1 {
+            return;
+        }
+
+        unsafe {
+            let ptr = self.as_mut_ptr();
+            let mut write = 1;
+
+            for read in 1..len {
+                let prev = ptr.add(write - 1);
+                let curr = ptr.add(read);
+
+                if same_bucket(&mut *prev, &mut *curr) {
+                    ptr::drop_in_place(curr);
+                } else {
+                    if write != read {
+                        ptr::copy_nonoverlapping(curr, ptr.add(write), 1);
+                    }
+                    write += 1;
+                }
+            }
+
+            self.set_len(write);
+        }
+    }
+
+    pub fn dedup(&mut self)
+    where
+        T: PartialEq,
+    {
+        self.dedup_by(|a, b| a == b);
+    }
+
+    pub fn dedup_by_key<F, K>(&mut self, mut key: F)
+    where
+        F: FnMut(&mut T) -> K,
+        K: PartialEq,
+    {
+        self.dedup_by(|a, b| key(a) == key(b));
     }
 
     pub fn retain<F>(&mut self, mut f: F)
@@ -412,6 +697,52 @@ impl<T, const N: usize> InplaceVector<T, N> {
         process_loop::<F, T, N, true>(original_len, &mut f, &mut g);
 
         drop(g);
+    }
+}
+
+impl<T, const N: usize> FromIterator<T> for InplaceVector<T, N> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut result = Self::new();
+        result.extend(iter);
+        result
+    }
+}
+
+impl<T, const N: usize> Extend<T> for InplaceVector<T, N> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        let it = iter.into_iter();
+        match it.size_hint() {
+            (lowerbound, _) if lowerbound > self.remaining_capacity() => {
+                panic!("Can't extend {lowerbound} elements into InplaceVector<_, {N}>")
+            }
+
+            (_, Some(upperbound)) if upperbound <= self.remaining_capacity() => {
+                for elem in it {
+                    unsafe { self.unchecked_push(elem) };
+                }
+            }
+            _ => {
+                for elem in it {
+                    self.push(elem);
+                }
+            }
+        };
+    }
+}
+
+impl<const N: usize> std::io::Write for InplaceVector<u8, N> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let min = self.remaining_capacity().min(buf.len());
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(buf.as_ptr(), self.as_mut_ptr().add(self.len()), min);
+        }
+
+        Ok(min)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 

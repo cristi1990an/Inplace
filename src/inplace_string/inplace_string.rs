@@ -393,7 +393,7 @@ impl<const N: usize> InplaceString<N> {
 
     /// Converts a slice of bytes to a string slice without checking that the string contains valid UTF-8.
     ///
-    // This is an alias to str::from_utf8_unchecked.
+    /// This is an alias to str::from_utf8_unchecked.
     ///
     /// See the safe version, from_utf8, for more information.
     ///
