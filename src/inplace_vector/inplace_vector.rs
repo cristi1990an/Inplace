@@ -529,7 +529,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
             let tail = len - end;
             if tail > 0 {
-                ptr::copy(self.as_ptr().add(end), self.as_mut_ptr().add(start), tail);
+                let base = self.as_mut_ptr();
+                ptr::copy(base.add(end), base.add(start), tail);
             }
 
             self.set_len(len - count);
@@ -595,86 +596,18 @@ impl<T, const N: usize> InplaceVector<T, N> {
     where
         F: FnMut(&mut T) -> bool,
     {
-        let original_len = self.len();
-
-        if original_len == 0 {
-            return;
-        }
-
-        unsafe {
-            self.set_len(0);
-        };
-
-        struct BackshiftOnDrop<'a, T, const N: usize> {
-            v: &'a mut InplaceVector<T, N>,
-            processed_len: usize,
-            deleted_count: usize,
-            original_len: usize,
-        }
-
-        impl<T, const N: usize> Drop for BackshiftOnDrop<'_, T, N> {
-            fn drop(&mut self) {
-                if self.deleted_count > 0 {
-                    unsafe {
-                        ptr::copy(
-                            self.v.as_ptr().add(self.processed_len),
-                            self.v
-                                .as_mut_ptr()
-                                .add(self.processed_len - self.deleted_count),
-                            self.original_len - self.processed_len,
-                        );
-                    }
+        let mut keep = 0;
+        for i in 0..self.len() {
+            if f(&mut self[i]) {
+                if keep != i {
+                    self.swap(keep, i);
                 }
-
-                unsafe {
-                    self.v.set_len(self.original_len - self.deleted_count);
-                }
+                keep += 1;
             }
         }
-
-        let mut g = BackshiftOnDrop {
-            v: self,
-            processed_len: 0,
-            deleted_count: 0,
-            original_len,
-        };
-
-        fn process_loop<F, T, const N: usize, const DELETED: bool>(
-            original_len: usize,
-            f: &mut F,
-            g: &mut BackshiftOnDrop<'_, T, N>,
-        ) where
-            F: FnMut(&mut T) -> bool,
-        {
-            while g.processed_len != original_len {
-                let current = unsafe { &mut *g.v.as_mut_ptr().add(g.processed_len) };
-
-                if !f(current) {
-                    g.processed_len += 1;
-                    g.deleted_count += 1;
-                    unsafe { ptr::drop_in_place(current) };
-                    if DELETED {
-                        continue;
-                    } else {
-                        break;
-                    }
-                }
-
-                if DELETED {
-                    unsafe {
-                        let hole_slot = g.v.as_mut_ptr().add(g.processed_len - g.deleted_count);
-                        ptr::copy_nonoverlapping(current, hole_slot, 1);
-                    }
-                }
-                g.processed_len += 1;
-            }
-        }
-
-        process_loop::<F, T, N, false>(original_len, &mut f, &mut g);
-        process_loop::<F, T, N, true>(original_len, &mut f, &mut g);
-
-        drop(g);
+        self.truncate(keep);
     }
+
 }
 
 impl<T, const N: usize> FromIterator<T> for InplaceVector<T, N> {
@@ -709,10 +642,11 @@ impl<T, const N: usize> Extend<T> for InplaceVector<T, N> {
 
 impl<const N: usize> std::io::Write for InplaceVector<u8, N> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let old_len = self.len();
         let min = self.remaining_capacity().min(buf.len());
-
         unsafe {
-            std::ptr::copy_nonoverlapping(buf.as_ptr(), self.as_mut_ptr().add(self.len()), min);
+            std::ptr::copy_nonoverlapping(buf.as_ptr(), self.as_mut_ptr().add(old_len), min);
+            self.set_len(old_len + min);
         }
 
         Ok(min)
@@ -1246,26 +1180,26 @@ mod tests {
         assert_eq!(v.as_slice()[1], 9);
     }
 
-    // #[test]
-    // fn retain_and_retain_mut() {
-    //     let mut v = InplaceVector::<i32, 8>::new();
-    //     for i in 0..8 {
-    //         v.push(i);
-    //     }
-    //     v.retain(|&x| x % 2 == 0);
-    //     assert_eq!(v.as_slice(), &[0, 2, 4, 6]);
+    #[test]
+    fn retain_and_retain_mut() {
+        let mut v = InplaceVector::<i32, 8>::new();
+        for i in 0..8 {
+            v.push(i);
+        }
+        v.retain(|&x| x % 2 == 0);
+        assert_eq!(v.as_slice(), &[0, 2, 4, 6]);
 
-    //     let mut v2 = InplaceVector::<i32, 8>::new();
-    //     for i in 0..8 {
-    //         v2.push(i);
-    //     }
-    //     v2.retain_mut(|x| {
-    //         *x += 1;
-    //         (*x) % 2 == 0
-    //     });
-    //     assert_eq!(v2.as_slice(), &[2, 4, 6, 8], "sanity");
-    //     assert_eq!(v2.len(), 4);
-    // }
+        let mut v2 = InplaceVector::<i32, 8>::new();
+        for i in 0..8 {
+            v2.push(i);
+        }
+        v2.retain_mut(|x| {
+            *x += 1;
+            (*x) % 2 == 0
+        });
+        assert_eq!(v2.as_slice(), &[2, 4, 6, 8], "sanity");
+        assert_eq!(v2.len(), 4);
+    }
 
     #[test]
     fn clone_from_slice_and_copy_from_slice() {
@@ -1416,5 +1350,158 @@ mod tests {
             }
         }
         assert!(counter.get() <= 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "insertion index")]
+    fn insert_out_of_bounds_panics() {
+        let mut v = InplaceVector::<i32, 3>::new();
+        v.push(1);
+        v.insert(2, 5); // len is 1, index 2 is invalid
+    }
+
+    #[test]
+    #[should_panic(expected = "insert call should not exceed capacity")]
+    fn insert_when_full_panics() {
+        let mut v = InplaceVector::<i32, 2>::new();
+        v.push(1);
+        v.push(2);
+        v.insert(1, 3);
+    }
+
+    #[test]
+    #[should_panic(expected = "removal index")]
+    fn remove_out_of_bounds_panics() {
+        let mut v = InplaceVector::<i32, 2>::new();
+        v.push(1);
+        v.remove(1);
+    }
+
+    #[test]
+    #[should_panic(expected = "removal index")]
+    fn swap_remove_out_of_bounds_panics() {
+        let mut v = InplaceVector::<i32, 2>::new();
+        v.push(1);
+        v.swap_remove(1);
+    }
+
+    #[test]
+    #[should_panic(expected = "range out of bounds")]
+    fn drain_out_of_bounds_panics() {
+        let mut v = InplaceVector::<i32, 3>::new();
+        v.push(1);
+        v.push(2);
+        v.drain(0..4);
+    }
+
+    #[test]
+    fn drain_removes_correct_range() {
+        let mut v = InplaceVector::<i32, 5>::new();
+        for i in 0..5 { v.push(i); }
+        let drained = v.drain(1..4);
+        assert_eq!(drained.as_slice(), &[1, 2, 3]);
+        assert_eq!(v.as_slice(), &[0, 4]);
+    }
+
+    #[test]
+    fn split_off_at_len_and_zero() {
+        let mut v = InplaceVector::<i32, 3>::new();
+        v.push(1);
+        v.push(2);
+        let tail = v.split_off(2);
+        assert_eq!(tail.as_slice(), &[]);
+        assert_eq!(v.as_slice(), &[1, 2]);
+
+        let mut v2 = InplaceVector::<i32, 3>::new();
+        v2.push(1);
+        let head = v2.split_off(0);
+        assert_eq!(head.as_slice(), &[1]);
+        assert_eq!(v2.as_slice(), &[]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn extend_from_slice_panics_when_too_big() {
+        let mut v = InplaceVector::<i32, 2>::new();
+        let slice = [1, 2, 3];
+        v.extend_from_slice(&slice);
+    }
+
+    #[test]
+    fn try_from_slice_failure_and_success() {
+        let arr = [1, 2, 3, 4];
+        assert!(InplaceVector::<i32, 3>::try_from(&arr[..]).is_err());
+        let arr2 = [1, 2];
+        let v = InplaceVector::<i32, 3>::try_from(&arr2[..]).unwrap();
+        assert_eq!(v.as_slice(), &[1, 2]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn resize_panics_when_exceeds_capacity() {
+        let mut v = InplaceVector::<i32, 2>::new();
+        v.resize(3, 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn resize_with_panics_when_exceeds_capacity() {
+        let mut v = InplaceVector::<i32, 2>::new();
+        v.resize_with(3, || 1);
+    }
+
+    #[test]
+    fn dedup_variants() {
+        let mut v = InplaceVector::<i32, 5>::new();
+        v.push(1); v.push(1); v.push(2); v.push(2); v.push(3);
+        v.dedup();
+        assert_eq!(v.as_slice(), &[1, 2, 3]);
+
+        let mut v2 = InplaceVector::<i32, 10>::new();
+        v2.push(1); v2.push(1); v2.push(2); v2.push(2); v2.push(4); v2.push(3); v2.push(5); v2.push(7);
+        v2.dedup_by(|a, b| *a % 2 == *b % 2);
+        assert_eq!(v2.as_slice(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn dedup_by_key_example() {
+        let mut v = InplaceVector::<i32, 5>::new();
+        v.push(1); v.push(3); v.push(2); v.push(4); v.dedup_by_key(|x| *x % 2);
+        assert_eq!(v.as_slice(), &[1, 2]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn append_panics_when_overflow() {
+        let mut a = InplaceVector::<i32, 2>::new();
+        a.push(1);
+
+        let mut b = InplaceVector::<i32, 2>::new();
+        b.push(2); b.push(3);
+
+        a.append(&mut b)
+    }
+
+    #[test]
+    fn into_iter_clone_and_double_ended() {
+        let mut v = InplaceVector::<i32, 3>::new();
+        v.push(10); v.push(20);
+        let mut iter = v.clone().into_iter();
+        assert_eq!(iter.next(), Some(10));
+        assert_eq!(iter.next_back(), Some(20));
+        assert_eq!(iter.next(), None);
+
+        let mut iter2 = v.into_iter();
+        let mut clone = iter2.clone();
+        assert_eq!(clone.as_slice(), &[10, 20]);
+    }
+
+    #[test]
+    fn write_trait_behavior() {
+        let mut v = InplaceVector::<u8, 4>::new();
+        let buf = [1, 2, 3, 4, 5];
+        let written = std::io::Write::write(&mut v, &buf).unwrap();
+        assert_eq!(written, 4);
+        assert_eq!(v.as_slice(), &[1, 2, 3, 4]);
     }
 }
