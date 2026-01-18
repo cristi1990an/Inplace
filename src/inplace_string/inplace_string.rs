@@ -1,13 +1,24 @@
 mod details {
 
+    /// UTF-8 continuation byte tag: `10xxxxxx`    
     const TAG_CONT: u8 = 0b1000_0000;
+    /// UTF-8 2-byte leading tag: `110xxxxx`
     const TAG_TWO_B: u8 = 0b1100_0000;
+    /// UTF-8 3-byte leading tag: `1110xxxx`
     const TAG_THREE_B: u8 = 0b1110_0000;
+    /// UTF-8 4-byte leading tag: `11110xxx`
     const TAG_FOUR_B: u8 = 0b1111_0000;
+    /// Maximum scalar value representable in 1 UTF-8 byte.
     const MAX_ONE_B: u32 = 0x80;
+    /// Maximum scalar value representable in 2 UTF-8 bytes.
     const MAX_TWO_B: u32 = 0x800;
+    /// Maximum scalar value representable in 3 UTF-8 bytes.
     const MAX_THREE_B: u32 = 0x10000;
 
+    /// Returns the number of bytes required to encode a Unicode scalar value
+    /// in UTF-8.
+    ///
+    /// This function assumes `code` is a valid Unicode scalar value.
     const fn len_utf8(code: u32) -> usize {
         match code {
             ..MAX_ONE_B => 1,
@@ -17,6 +28,14 @@ mod details {
         }
     }
 
+    /// Encodes a Unicode scalar value into UTF-8 at the given destination
+    /// pointer **without performing any validation**.
+    ///
+    /// # Safety
+    ///
+    /// - `code` must be a valid Unicode scalar value.
+    /// - `dst` must point to at least `len_utf8(code)` writable bytes.
+    /// - No bounds or aliasing checks are performed.
     pub(crate) const unsafe fn encode_utf8_raw_unchecked(code: u32, dst: *mut u8) {
         let len = len_utf8(code);
         unsafe {
@@ -52,9 +71,10 @@ mod details {
 }
 
 use core::fmt;
-use std::{
+use core::{
     fmt::{Debug, Write},
     hash::Hash,
+    num::NonZeroUsize,
     ops::{Add, AddAssign, Deref, DerefMut, RangeBounds},
     ptr,
     str::FromStr,
@@ -62,10 +82,17 @@ use std::{
 
 use crate::InplaceVector;
 
+/// A fixed-capacity, UTF-8 encoded string stored inline.
+///
+/// `InplaceString<N>` stores up to `N` bytes of UTF-8 data without heap
+/// allocation. Always implements the Copy trait. All operations preserve UTF-8 validity.
+///
+/// The length is stored using a `NonZeroUsize` to enable niche optimization,
+/// making `Option<InplaceString<N>>` the same size as `InplaceString<N>`.
 #[derive(Clone, Copy)]
 pub struct InplaceString<const N: usize> {
     data: [u8; N],
-    size: usize,
+    size: NonZeroUsize,
 }
 
 #[derive(Debug)]
@@ -114,55 +141,66 @@ impl std::fmt::Display for InplaceUtf8Error {
 }
 
 impl<const N: usize> InplaceString<N> {
+    /// Creates a new empty `InplaceString`.
+    ///
+    /// Capacity is fixed at `N`.
     pub const fn new() -> Self {
         InplaceString {
             data: [const { 0 }; N],
-            size: 0,
+            size: unsafe { NonZeroUsize::new_unchecked(1) },
         }
     }
 
+    /// Returns the string as a `&str`.
+    ///
+    /// This is always safe because all mutations preserve UTF-8 validity.
     pub fn as_str(&self) -> &str {
-        unsafe { str::from_utf8_unchecked(self.data.get_unchecked(..self.size)) }
+        unsafe { str::from_utf8_unchecked(self.data.get_unchecked(..self.len())) }
     }
 
+    /// Returns the string as a mutable `&mut str`.
     pub fn as_mut_str(&mut self) -> &mut str {
-        unsafe { str::from_utf8_unchecked_mut(self.data.get_unchecked_mut(..self.size)) }
+        let len = self.len();
+        unsafe { str::from_utf8_unchecked_mut(self.data.get_unchecked_mut(..len)) }
     }
 
-    pub const fn as_bytes(&self) -> &[u8] {
-        &self.data
+    /// Returns the underlying bytes of the string.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data[..self.len()]
     }
 
+    /// Returns the fixed capacity of this string.
     pub const fn capacity(&self) -> usize {
         N
     }
 
+    /// Returns remaining unused capacity.
     pub const fn remaining_capacity(&self) -> usize {
-        N - self.size
+        N - self.len()
     }
 
+    /// Returns `true` if the string is at full capacity.
     pub const fn is_full(&self) -> bool {
         self.remaining_capacity() == 0
     }
 
-    /// Pushes a new char into the string without checking that capacity is not exceeded.
-    /// This is a low-level operation that can be used to optimize multiple push calls when
-    /// the final size is known by the user to not exceed the total capacity.
+    /// Appends a character without checking capacity.
     ///
     /// # Safety
     ///
-    /// - ch.len_utf8() should not be greater than remaining_capacity()
-    /// - undefined behavior otherwise.
-    ///
+    /// - `ch.len_utf8()` must be <= `remaining_capacity()`
+    /// - Violating this causes out-of-bounds writes and UB.
     pub unsafe fn unchecked_push(&mut self, ch: char) {
         let len = self.len();
         let ch_len = ch.len_utf8();
+        debug_assert!(ch_len <= self.remaining_capacity());
         unsafe {
             details::encode_utf8_raw_unchecked(ch as u32, self.data.as_mut_ptr().add(self.len()));
             self.set_len(len + ch_len);
         }
     }
 
+    /// Attempts to append a character, returning an error if capacity is exceeded.
     pub fn try_push(&mut self, ch: char) -> Result<(), InplaceError> {
         let ch_len = ch.len_utf8();
         if self.remaining_capacity() < ch_len {
@@ -177,6 +215,7 @@ impl<const N: usize> InplaceString<N> {
         Ok(())
     }
 
+    /// Appends a character, panicking if capacity is exceeded.
     pub fn push(&mut self, ch: char) {
         self.try_push(ch).unwrap();
     }
@@ -192,13 +231,14 @@ impl<const N: usize> InplaceString<N> {
     ///
     pub unsafe fn unchecked_push_str(&mut self, string: &str) {
         let string_len = string.len();
+        debug_assert!(string_len <= self.remaining_capacity());
         unsafe {
             std::ptr::copy(
                 string.as_ptr(),
-                self.data.as_mut_ptr().add(self.size),
+                self.data.as_mut_ptr().add(self.len()),
                 string_len,
             );
-            self.set_len(self.size + string_len);
+            self.set_len(self.len() + string_len);
         }
     }
 
@@ -233,16 +273,14 @@ impl<const N: usize> InplaceString<N> {
     ///
     pub unsafe fn unchecked_insert(&mut self, idx: usize, ch: char) {
         assert!(self.is_char_boundary(idx));
+        debug_assert!(ch.len_utf8() <= self.remaining_capacity());
 
         let len = self.len();
         let ch_len = ch.len_utf8();
 
+        let base = self.data.as_mut_ptr();
         unsafe {
-            ptr::copy(
-                self.data.as_ptr().add(idx),
-                self.data.as_mut_ptr().add(idx + ch_len),
-                len - idx,
-            );
+            ptr::copy(base.add(idx), base.add(idx + ch_len), len - idx);
             details::encode_utf8_raw_unchecked(ch as u32, self.data.as_mut_ptr().add(idx));
             self.set_len(len + ch_len);
         }
@@ -273,19 +311,13 @@ impl<const N: usize> InplaceString<N> {
     ///
     pub unsafe fn unchecked_insert_str(&mut self, idx: usize, string: &str) {
         assert!(self.is_char_boundary(idx));
+        assert!(string.len() <= self.remaining_capacity());
 
         let len = self.len();
         let amt = string.len();
 
-        unsafe {
-            ptr::copy(
-                self.as_ptr().add(idx),
-                self.as_mut_ptr().add(idx + amt),
-                len - idx,
-            );
-            ptr::copy_nonoverlapping(string.as_ptr(), self.as_mut_ptr().add(idx), amt);
-            self.set_len(len + amt);
-        }
+        self.unchecked_push_str(string);
+        self.as_mut_bytes()[idx..len + amt].rotate_right(amt);
     }
 
     pub fn try_insert_str(&mut self, idx: usize, string: &str) -> Result<(), InplaceError> {
@@ -360,15 +392,18 @@ impl<const N: usize> InplaceString<N> {
     /// - the elements at old_len..new_len must represent a valid UTF8 sequence.
     ///
     pub unsafe fn set_len(&mut self, new_len: usize) {
-        self.size = new_len;
+        debug_assert!(new_len <= N);
+        self.size = NonZeroUsize::new_unchecked(new_len.add(1));
     }
 
+    /// Returns the current length in bytes.
     pub const fn len(&self) -> usize {
-        self.size
+        unsafe { self.size.get().unchecked_sub(1) }
     }
 
+    /// Returns `true` if the string is empty.
     pub const fn is_empty(&self) -> bool {
-        self.size == 0
+        self.len() == 0
     }
 
     pub fn clear(&mut self) {
@@ -384,6 +419,24 @@ impl<const N: usize> InplaceString<N> {
         Some(ch)
     }
 
+    pub fn truncate(&mut self, new_len: usize) {
+        if new_len < self.len() {
+            assert!(self.is_char_boundary(new_len));
+            unsafe { self.set_len(new_len) };
+        }
+    }
+
+    pub fn split_off(&mut self, at: usize) -> Self {
+        let (_, split) = self.as_bytes().split_at(at);
+        assert!(self.is_char_boundary(at));
+        let result = unsafe { Self::from_utf8_unchecked(split) };
+        unsafe {
+            self.set_len(at);
+        }
+
+        result
+    }
+
     pub fn from_utf8(v: &[u8]) -> Result<Self, InplaceUtf8Error> {
         match str::from_utf8(v) {
             Ok(str) => Self::try_from(str).map_err(InplaceUtf8Error::InplaceError),
@@ -397,6 +450,9 @@ impl<const N: usize> InplaceString<N> {
     ///
     /// See the safe version, from_utf8, for more information.
     ///
+    /// # Panics
+    /// Panics if bytes.len() > N
+    ///
     /// # Safety
     /// The bytes passed in must be valid UTF-8.
     ///
@@ -407,12 +463,44 @@ impl<const N: usize> InplaceString<N> {
             );
         }
 
+        debug_assert!(str::from_utf8(bytes).is_ok());
+
         let mut result = Self::new();
         unsafe {
             std::ptr::copy_nonoverlapping(bytes.as_ptr(), result.data.as_mut_ptr(), bytes.len());
             result.set_len(bytes.len());
         }
         result
+    }
+
+    pub fn from_utf8_lossy(v: &[u8]) -> Self {
+        let mut iter = v.utf8_chunks();
+
+        let first_valid = if let Some(chunk) = iter.next() {
+            let valid = chunk.valid();
+            if chunk.invalid().is_empty() {
+                debug_assert_eq!(valid.len(), v.len());
+                return unsafe { Self::from_utf8_unchecked(valid.as_bytes()) };
+            }
+            valid
+        } else {
+            return Self::new();
+        };
+
+        const REPLACEMENT: &str = "\u{FFFD}";
+
+        let mut res = Self::new();
+        res.push_str(first_valid);
+        res.push_str(REPLACEMENT);
+
+        for chunk in iter {
+            res.push_str(chunk.valid());
+            if !chunk.invalid().is_empty() {
+                res.push_str(REPLACEMENT);
+            }
+        }
+
+        res
     }
 
     pub fn into_bytes(self) -> InplaceVector<u8, N> {
@@ -424,6 +512,17 @@ impl<const N: usize> InplaceString<N> {
         }
 
         result
+    }
+
+    /// Returns a mutable reference to the contents of this InplaceString.
+    ///
+    /// # Safety
+    /// This function is unsafe because the returned &mut [u8] allows writing bytes which are not valid UTF-8.
+    /// If this constraint is violated, using the original InplaceString after dropping the
+    /// &mut [u8] may violate memory safety.
+    pub unsafe fn as_mut_bytes(&mut self) -> &mut [u8] {
+        let len = self.len();
+        &mut self.data[..len]
     }
 
     pub fn remove(&mut self, idx: usize) -> char {
@@ -536,7 +635,7 @@ impl<'a, const N: usize> FromIterator<&'a char> for InplaceString<N> {
     fn from_iter<T: IntoIterator<Item = &'a char>>(iter: T) -> Self {
         let mut result = Self::new();
         for ch in iter {
-            result.push(*ch);
+            result.try_push(*ch).expect("capacity exceeded");
         }
         result
     }
@@ -667,7 +766,7 @@ impl<const N: usize> Debug for InplaceString<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(concat!("InplaceString<", stringify!(N), ">"))
             .field("string", &self.as_str())
-            .field("size", &self.size)
+            .field("size", &self.len())
             .finish()
     }
 }
@@ -714,11 +813,121 @@ impl<'a, const N: usize> Extend<&'a str> for InplaceString<N> {
 
 impl<const N: usize> Eq for InplaceString<N> {}
 
+/// A helper trait for formatting values into a bounded `InplaceString`.
+///
+/// Implemented only for basic types guaranteed that their string formatted size will not exceed 20 bytes.
+pub trait BoundedDisplay: core::fmt::Display {
+    /// Formats `self` into an `InplaceString<20>`. Should never panic.
+    ///
+    fn to_inplace_string(&self) -> InplaceString<20> {
+        let mut result = InplaceString::<20>::new();
+        use core::fmt::Write;
+        write!(&mut result, "{}", self).expect("This shouldn't fail :)");
+        result
+    }
+}
+
+impl BoundedDisplay for u8 {}
+
+impl BoundedDisplay for i8 {}
+
+impl BoundedDisplay for i16 {}
+
+impl BoundedDisplay for u16 {}
+
+impl BoundedDisplay for u32 {}
+
+impl BoundedDisplay for i32 {}
+
+impl BoundedDisplay for u64 {}
+
+impl BoundedDisplay for i64 {}
+
+impl BoundedDisplay for usize {}
+
+impl BoundedDisplay for bool {}
+
+impl BoundedDisplay for char {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const CAP: usize = 16;
+
+    #[test]
+    fn test_u8_bounded_display() {
+        let value: u8 = 255;
+        let s = value.to_inplace_string();
+        assert_eq!(s.as_str(), "255");
+        assert!(value.to_string().len() <= 20);
+    }
+
+    #[test]
+    fn test_i8_bounded_display() {
+        let value: i8 = -128;
+        let s = value.to_inplace_string();
+        assert_eq!(s.as_str(), "-128");
+        assert!(value.to_string().len() <= 20);
+    }
+
+    #[test]
+    fn test_u32_bounded_display() {
+        let value: u32 = 4_294_967_295;
+        let s = value.to_inplace_string();
+        assert_eq!(s.as_str(), "4294967295");
+        assert!(value.to_string().len() <= 20);
+    }
+
+    #[test]
+    fn test_i32_bounded_display() {
+        let value: i32 = -2_147_483_648;
+        let s = value.to_inplace_string();
+        assert_eq!(s.as_str(), "-2147483648");
+        assert!(value.to_string().len() <= 20);
+    }
+
+    #[test]
+    fn test_u64_bounded_display() {
+        let value: u64 = 18_446_744_073_709_551_615;
+        let s = value.to_inplace_string();
+        assert_eq!(s.as_str(), "18446744073709551615");
+        assert!(value.to_string().len() <= 20);
+    }
+
+    #[test]
+    fn test_i64_bounded_display() {
+        let value: i64 = -9_223_372_036_854_775_808;
+        let s = value.to_inplace_string();
+        assert_eq!(s.as_str(), "-9223372036854775808");
+        assert!(value.to_string().len() <= 20);
+    }
+
+    #[test]
+    fn test_usize_bounded_display() {
+        let value: usize = 123456789;
+        let s = value.to_inplace_string();
+        assert_eq!(s.as_str(), "123456789");
+        assert!(value.to_string().len() <= 20);
+    }
+
+    #[test]
+    fn test_bool_bounded_display() {
+        let t = true.to_inplace_string();
+        let f = false.to_inplace_string();
+        assert_eq!(t.as_str(), "true");
+        assert_eq!(f.as_str(), "false");
+        assert!(t.to_string().len() <= 20);
+        assert!(f.to_string().len() <= 20);
+    }
+
+    #[test]
+    fn test_char_bounded_display() {
+        let ch = 'β';
+        let s = ch.to_inplace_string();
+        assert_eq!(s.as_str(), "β");
+        assert!(ch.to_string().len() <= 20);
+    }
 
     #[test]
     fn test_new_and_basic_properties() {
@@ -900,6 +1109,19 @@ mod tests {
         s3 += "bar";
         assert_eq!(s3.as_str(), "foobar");
         dbg!(s3);
+    }
+
+    #[test]
+    fn test_transmute() {
+        let mut s = InplaceString::<CAP>::from_str("hello").unwrap();
+
+        unsafe {
+            let vec = s.as_mut_bytes();
+            assert_eq!(&[104, 101, 108, 108, 111][..], &vec[..]);
+
+            vec.reverse();
+        }
+        assert_eq!(s, "olleh");
     }
 
     #[test]

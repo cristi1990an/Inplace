@@ -1,24 +1,25 @@
 use core::fmt;
-use std::{
+use core::{
     fmt::Debug,
     hash::Hash,
     iter::FusedIterator,
     mem::MaybeUninit,
-    ops::{Deref, DerefMut, Index, IndexMut, RangeBounds},
+    num::NonZeroUsize,
+    ops::{Add, Deref, DerefMut, Index, IndexMut, RangeBounds},
     ptr,
     slice::SliceIndex,
 };
 
 pub struct InplaceVector<T, const N: usize> {
     data: [MaybeUninit<T>; N],
-    size: usize,
+    size: NonZeroUsize,
 }
 
 impl<T, const N: usize> InplaceVector<T, N> {
     pub const fn new() -> Self {
         InplaceVector {
             data: [const { MaybeUninit::uninit() }; N],
-            size: 0,
+            size: unsafe { NonZeroUsize::new_unchecked(1) },
         }
     }
 
@@ -31,7 +32,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// - the elements at old_len..new_len must be initialized.
     ///
     pub unsafe fn set_len(&mut self, new_len: usize) {
-        self.size = new_len;
+        debug_assert!(new_len <= N);
+        self.size = NonZeroUsize::new_unchecked(new_len.add(1));
     }
 
     pub fn spare_capacity_mut(&mut self) -> &mut [MaybeUninit<T>] {
@@ -41,7 +43,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     pub const fn len(&self) -> usize {
-        self.size
+        unsafe { self.size.get().unchecked_sub(1) }
     }
 
     pub const fn capacity(&self) -> usize {
@@ -49,7 +51,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     pub const fn remaining_capacity(&self) -> usize {
-        N - self.size
+        N - self.len()
     }
 
     pub const fn is_full(&self) -> bool {
@@ -91,6 +93,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// - undefined behavior otherwise.
     ///
     pub unsafe fn unchecked_push(&mut self, value: T) -> &T {
+        debug_assert!(!self.is_full());
         let uninit_tail = self.spare_capacity_mut().get_unchecked_mut(0);
         uninit_tail.write(value);
         self.set_len(self.len() + 1);
@@ -133,6 +136,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// - undefined behavior otherwise.
     ///
     pub unsafe fn unchecked_push_mut(&mut self, value: T) -> &mut T {
+        debug_assert!(!self.is_full());
         let uninit_tail = self.spare_capacity_mut().get_unchecked_mut(0);
         uninit_tail.write(value);
         let new_len = self.len() + 1;
@@ -334,7 +338,9 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// - undefined behavior otherwise.
     ///
     pub unsafe fn unchecked_pop(&mut self) -> T {
-        let last_uninit = self.data.get_unchecked_mut(self.size - 1);
+        debug_assert!(!self.is_empty());
+        let index = self.len().unchecked_sub(1);
+        let last_uninit = self.data.get_unchecked_mut(index);
         let last = last_uninit.assume_init_read();
         self.set_len(self.len() - 1);
         last
@@ -412,50 +418,21 @@ impl<T, const N: usize> InplaceVector<T, N> {
         }
     }
 
-    pub fn insert(&mut self, index: usize, element: T) -> &T {
+    pub fn insert(&mut self, index: usize, element: T) -> &mut T {
         let len = self.len();
         if index > len {
             panic!("insertion index (is {index}) should be <= len (is {len})");
         }
-
         if self.is_full() {
-            panic!("insert call should not exceed capacity of InplaceVector");
+            panic!("insert call should not exceed capacity");
         }
 
-        unsafe {
-            let ptr = self.as_mut_ptr().add(index);
-            if index < len {
-                std::ptr::copy(ptr, ptr.add(1), len - index);
-            }
-            ptr::write(ptr, element);
+        unsafe { self.unchecked_push(element) };
 
-            self.set_len(len + 1);
+        let slice = &mut self.as_mut_slice()[index..];
+        slice.rotate_right(1);
 
-            ptr::read(ptr as *const &T)
-        }
-    }
-
-    pub fn insert_mut(&mut self, index: usize, element: T) -> &mut T {
-        let len = self.len();
-        if index > len {
-            panic!("insertion index (is {index}) should be <= len (is {len})");
-        }
-
-        if self.is_full() {
-            panic!("insert call should not exceed capacity of InplaceVector");
-        }
-
-        unsafe {
-            let ptr = self.as_mut_ptr().add(index);
-            if index < len {
-                std::ptr::copy(ptr, ptr.add(1), len - index);
-            }
-            ptr::write(ptr, element);
-
-            self.set_len(len + 1);
-
-            ptr::read(ptr as *const &mut T)
-        }
+        unsafe { self.get_unchecked_mut(index) }
     }
 
     pub fn split_off(&mut self, at: usize) -> Self {
