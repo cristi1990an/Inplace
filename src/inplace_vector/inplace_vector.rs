@@ -1509,8 +1509,8 @@ mod tests {
         assert_eq!(iter.next_back(), Some(20));
         assert_eq!(iter.next(), None);
 
-        let mut iter2 = v.into_iter();
-        let mut clone = iter2.clone();
+        let iter2 = v.into_iter();
+        let clone = iter2.clone();
         assert_eq!(clone.as_slice(), &[10, 20]);
     }
 
