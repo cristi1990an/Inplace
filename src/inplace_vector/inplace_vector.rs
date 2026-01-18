@@ -607,7 +607,6 @@ impl<T, const N: usize> InplaceVector<T, N> {
         }
         self.truncate(keep);
     }
-
 }
 
 impl<T, const N: usize> FromIterator<T> for InplaceVector<T, N> {
@@ -1397,7 +1396,9 @@ mod tests {
     #[test]
     fn drain_removes_correct_range() {
         let mut v = InplaceVector::<i32, 5>::new();
-        for i in 0..5 { v.push(i); }
+        for i in 0..5 {
+            v.push(i);
+        }
         let drained = v.drain(1..4);
         assert_eq!(drained.as_slice(), &[1, 2, 3]);
         assert_eq!(v.as_slice(), &[0, 4]);
@@ -1453,12 +1454,23 @@ mod tests {
     #[test]
     fn dedup_variants() {
         let mut v = InplaceVector::<i32, 5>::new();
-        v.push(1); v.push(1); v.push(2); v.push(2); v.push(3);
+        v.push(1);
+        v.push(1);
+        v.push(2);
+        v.push(2);
+        v.push(3);
         v.dedup();
         assert_eq!(v.as_slice(), &[1, 2, 3]);
 
         let mut v2 = InplaceVector::<i32, 10>::new();
-        v2.push(1); v2.push(1); v2.push(2); v2.push(2); v2.push(4); v2.push(3); v2.push(5); v2.push(7);
+        v2.push(1);
+        v2.push(1);
+        v2.push(2);
+        v2.push(2);
+        v2.push(4);
+        v2.push(3);
+        v2.push(5);
+        v2.push(7);
         v2.dedup_by(|a, b| *a % 2 == *b % 2);
         assert_eq!(v2.as_slice(), &[1, 2, 3]);
     }
@@ -1466,7 +1478,11 @@ mod tests {
     #[test]
     fn dedup_by_key_example() {
         let mut v = InplaceVector::<i32, 5>::new();
-        v.push(1); v.push(3); v.push(2); v.push(4); v.dedup_by_key(|x| *x % 2);
+        v.push(1);
+        v.push(3);
+        v.push(2);
+        v.push(4);
+        v.dedup_by_key(|x| *x % 2);
         assert_eq!(v.as_slice(), &[1, 2]);
     }
 
@@ -1477,7 +1493,8 @@ mod tests {
         a.push(1);
 
         let mut b = InplaceVector::<i32, 2>::new();
-        b.push(2); b.push(3);
+        b.push(2);
+        b.push(3);
 
         a.append(&mut b)
     }
@@ -1485,7 +1502,8 @@ mod tests {
     #[test]
     fn into_iter_clone_and_double_ended() {
         let mut v = InplaceVector::<i32, 3>::new();
-        v.push(10); v.push(20);
+        v.push(10);
+        v.push(20);
         let mut iter = v.clone().into_iter();
         assert_eq!(iter.next(), Some(10));
         assert_eq!(iter.next_back(), Some(20));
