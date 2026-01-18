@@ -1,6 +1,6 @@
 [package]
 name = "inplace_containers"
-version = "0.2.1"
+version = "0.2.5"
 edition = "2021"
 description = "In-place, fixed-capacity containers with optional features"
 license = "MIT OR Apache-2.0"
