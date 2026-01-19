@@ -79,6 +79,7 @@ use core::{
     ptr,
     str::FromStr,
 };
+use std::ffi::{c_str, CString};
 
 use crate::InplaceVector;
 
@@ -270,6 +271,7 @@ impl<const N: usize> InplaceString<N> {
     ///
     /// - ch.len_utf8() should not be greater than remaining_capacity()
     /// - undefined behavior otherwise.
+    /// - utf8 validity is still checked
     ///
     pub unsafe fn unchecked_insert(&mut self, idx: usize, ch: char) {
         assert!(self.is_char_boundary(idx));
@@ -429,7 +431,7 @@ impl<const N: usize> InplaceString<N> {
     pub fn split_off(&mut self, at: usize) -> Self {
         let (_, split) = self.as_bytes().split_at(at);
         assert!(self.is_char_boundary(at));
-        let result = unsafe { Self::from_utf8_unchecked(split) };
+        let result = unsafe { Self::from_utf8_unchecked(split).unwrap() };
         unsafe {
             self.set_len(at);
         }
@@ -450,17 +452,16 @@ impl<const N: usize> InplaceString<N> {
     ///
     /// See the safe version, from_utf8, for more information.
     ///
-    /// # Panics
-    /// Panics if bytes.len() > N
-    ///
     /// # Safety
     /// The bytes passed in must be valid UTF-8.
     ///
-    pub unsafe fn from_utf8_unchecked(bytes: &[u8]) -> Self {
+    pub unsafe fn from_utf8_unchecked(bytes: &[u8]) -> Result<Self, InplaceError> {
         if bytes.len() > N {
-            panic!(
-                "Length of array passed to from_utf8_unchecked would exceed InplaceString capacity"
-            );
+            return Err(InplaceError {
+                current_size: 0,
+                capacity: N,
+                required_capacity: bytes.len(),
+            });
         }
 
         debug_assert!(str::from_utf8(bytes).is_ok());
@@ -470,10 +471,10 @@ impl<const N: usize> InplaceString<N> {
             std::ptr::copy_nonoverlapping(bytes.as_ptr(), result.data.as_mut_ptr(), bytes.len());
             result.set_len(bytes.len());
         }
-        result
+        Ok(result)
     }
 
-    pub fn from_utf8_lossy(v: &[u8]) -> Self {
+    pub fn from_utf8_lossy(v: &[u8]) -> Result<Self, InplaceError> {
         let mut iter = v.utf8_chunks();
 
         let first_valid = if let Some(chunk) = iter.next() {
@@ -484,7 +485,7 @@ impl<const N: usize> InplaceString<N> {
             }
             valid
         } else {
-            return Self::new();
+            return Ok(Self::new());
         };
 
         const REPLACEMENT: &str = "\u{FFFD}";
@@ -500,7 +501,7 @@ impl<const N: usize> InplaceString<N> {
             }
         }
 
-        res
+        Ok(res)
     }
 
     pub fn into_bytes(self) -> InplaceVector<u8, N> {
@@ -525,11 +526,8 @@ impl<const N: usize> InplaceString<N> {
         &mut self.data[..len]
     }
 
-    pub fn remove(&mut self, idx: usize) -> char {
-        let ch = match self[idx..].chars().next() {
-            Some(ch) => ch,
-            None => panic!("cannot remove a char from the end of a string"),
-        };
+    pub fn try_remove(&mut self, idx: usize) -> Option<char> {
+        let ch = self[idx..].chars().next()?;
 
         let next = idx + ch.len_utf8();
         let len = self.len();
@@ -542,7 +540,26 @@ impl<const N: usize> InplaceString<N> {
             self.set_len(len - (next - idx));
         }
 
-        ch
+        Some(ch)
+    }
+
+    pub fn remove(&mut self, idx: usize) -> char {
+        match self.try_remove(idx) {
+            Some(ch) => ch,
+            None => panic!("cannot remove a char from the end of a string"),
+        }
+    }
+
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        let filtered = self.chars().filter(|ch| f(*ch));
+        let mut tmp = Self::new();
+        for ch in filtered {
+            unsafe { tmp.unchecked_push(ch) };
+        }
+        *self = tmp;
     }
 }
 
@@ -631,6 +648,22 @@ impl<const N: usize> TryFrom<InplaceVector<u8, N>> for InplaceString<N> {
     }
 }
 
+impl<const N: usize> TryFrom<&std::ffi::CStr> for InplaceString<N> {
+    type Error = InplaceUtf8Error;
+
+    fn try_from(value: &std::ffi::CStr) -> Result<Self, Self::Error> {
+        value.to_bytes().try_into()
+    }
+}
+
+impl<const N: usize> TryFrom<std::ffi::CString> for InplaceString<N> {
+    type Error = InplaceUtf8Error;
+
+    fn try_from(value: std::ffi::CString) -> Result<Self, Self::Error> {
+        value.as_c_str().try_into()
+    }
+}
+
 impl<'a, const N: usize> FromIterator<&'a char> for InplaceString<N> {
     fn from_iter<T: IntoIterator<Item = &'a char>>(iter: T) -> Self {
         let mut result = Self::new();
@@ -641,11 +674,37 @@ impl<'a, const N: usize> FromIterator<&'a char> for InplaceString<N> {
     }
 }
 
+impl<const N: usize> FromIterator<char> for InplaceString<N> {
+    fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
+        let mut result = Self::new();
+        for ch in iter {
+            result.try_push(ch).expect("capacity exceeded");
+        }
+        result
+    }
+}
+
+impl<'a, const N: usize> FromIterator<&'a str> for InplaceString<N> {
+    fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
+        let mut result = Self::new();
+        for s in iter {
+            result.try_push_str(s).expect("capacity exceeded");
+        }
+        result
+    }
+}
+
 impl<const N: usize> FromStr for InplaceString<N> {
     type Err = InplaceError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::try_from(s)
+    }
+}
+
+impl<const N: usize> From<InplaceString<N>> for String {
+    fn from(value: InplaceString<N>) -> Self {
+        Self::from(value.as_str())
     }
 }
 
@@ -807,6 +866,14 @@ impl<'a, const N: usize> Extend<&'a str> for InplaceString<N> {
     fn extend<T: IntoIterator<Item = &'a str>>(&mut self, iter: T) {
         for string in iter {
             self.push_str(string);
+        }
+    }
+}
+
+impl<const N: usize> Extend<String> for InplaceString<N> {
+    fn extend<T: IntoIterator<Item = String>>(&mut self, iter: T) {
+        for string in iter {
+            self.push_str(string.as_str());
         }
     }
 }
@@ -1030,7 +1097,7 @@ mod tests {
     #[test]
     fn test_from_utf8_unchecked() {
         let bytes = "αβγ".as_bytes();
-        let s = unsafe { InplaceString::<CAP>::from_utf8_unchecked(bytes) };
+        let s = unsafe { InplaceString::<CAP>::from_utf8_unchecked(bytes).unwrap() };
         assert_eq!(s.as_str(), "αβγ");
     }
 
