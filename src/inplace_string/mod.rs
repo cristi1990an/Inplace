@@ -1,4 +1,4 @@
-mod inplace_string;
 mod inplace_string_macros;
+mod string;
 
-pub use inplace_string::InplaceString;
+pub use string::{BoundedDisplay, InplaceString};

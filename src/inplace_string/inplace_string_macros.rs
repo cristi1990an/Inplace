@@ -1,12 +1,10 @@
-use super::InplaceString;
-
-/// Creates an [`InplaceString`] from a string literal with exact capacity.
+/// Creates an [`crate::InplaceString`] from a string literal with exact capacity.
 ///
 /// This macro constructs an `InplaceString` whose capacity is **exactly equal**
 /// to the length of the provided string literal. No heap allocation is performed,
 /// and the contents are copied directly into the inline storage.
 ///
-/// The capacity is determined at compile time using the literal’s length.
+/// The capacity is determined at compile time using the literal's length.
 ///
 /// # Forms
 ///
@@ -51,7 +49,7 @@ use super::InplaceString;
 macro_rules! inplace_string {
     ($lit:literal) => {{
         const CAP: usize = $lit.len();
-        let mut s = InplaceString::<CAP>::new();
+        let mut s = $crate::InplaceString::<CAP>::new();
         unsafe {
             s.unchecked_push_str($lit);
         }

@@ -1,4 +1,4 @@
-mod inplace_vector;
 mod inplace_vector_macros;
+mod vector;
 
-pub use inplace_vector::InplaceVector;
+pub use vector::InplaceVector;
