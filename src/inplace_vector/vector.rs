@@ -546,6 +546,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     ///
     /// Returns `Ok(())` if all elements fit, or `Err(remaining)` with the tail that did not fit.
     ///
+    /// This function never panics; it returns the remaining slice when capacity is insufficient.
+    ///
     /// # Examples
     ///
     /// ```
@@ -560,7 +562,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     where
         T: Clone,
     {
-        let (to_clone, remaining) = other.split_at(self.remaining_capacity());
+        let take = self.remaining_capacity().min(other.len());
+        let (to_clone, remaining) = other.split_at(take);
         for elem in to_clone.iter().cloned() {
             unsafe { self.unchecked_push(elem) };
         }
@@ -1504,6 +1507,44 @@ impl<T, const N: usize> Extend<T> for InplaceVector<T, N> {
     }
 }
 
+impl<'a, T: Clone, const N: usize> Extend<&'a T> for InplaceVector<T, N> {
+    /// Extends the vector by cloning elements from the iterator.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the iterator yields more than the remaining capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inplace_containers::InplaceVector;
+    ///
+    /// let src = [1, 2];
+    /// let mut v: InplaceVector<i32, 3> = InplaceVector::new();
+    /// v.extend(src.iter());
+    /// assert_eq!(v, &[1, 2]);
+    /// ```
+    fn extend<I: IntoIterator<Item = &'a T>>(&mut self, iter: I) {
+        let it = iter.into_iter();
+        match it.size_hint() {
+            (lowerbound, _) if lowerbound > self.remaining_capacity() => {
+                panic!("Can't extend {lowerbound} elements into InplaceVector<_, {N}>")
+            }
+
+            (_, Some(upperbound)) if upperbound <= self.remaining_capacity() => {
+                for elem in it {
+                    unsafe { self.unchecked_push(elem.clone()) };
+                }
+            }
+            _ => {
+                for elem in it {
+                    self.push(elem.clone());
+                }
+            }
+        };
+    }
+}
+
 impl<const N: usize> std::io::Write for InplaceVector<u8, N> {
     /// Writes bytes into the vector, returning how many were written.
     ///
@@ -1889,6 +1930,28 @@ where
     }
 }
 
+impl<T, const N: usize> Ord for InplaceVector<T, N>
+where
+    T: Ord,
+{
+    /// Compares two vectors lexicographically.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inplace_containers::InplaceVector;
+    ///
+    /// let mut a: InplaceVector<i32, 2> = InplaceVector::new();
+    /// a.push(1);
+    /// let mut b: InplaceVector<i32, 2> = InplaceVector::new();
+    /// b.push(2);
+    /// assert!(a.cmp(&b).is_lt());
+    /// ```
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_slice().cmp(other.as_slice())
+    }
+}
+
 impl<T, const N: usize> Hash for InplaceVector<T, N>
 where
     T: Hash,
@@ -1947,6 +2010,24 @@ impl<T, const N: usize> AsMut<InplaceVector<T, N>> for InplaceVector<T, N> {
     }
 }
 
+impl<T, const N: usize> AsRef<[T]> for InplaceVector<T, N> {
+    /// Converts to a shared slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inplace_containers::InplaceVector;
+    ///
+    /// let mut v: InplaceVector<i32, 2> = InplaceVector::new();
+    /// v.push(1);
+    /// let s: &[i32] = v.as_ref();
+    /// assert_eq!(s, &[1]);
+    /// ```
+    fn as_ref(&self) -> &[T] {
+        self
+    }
+}
+
 impl<T, const N: usize> AsMut<[T]> for InplaceVector<T, N> {
     /// Converts to a mutable slice.
     ///
@@ -1962,6 +2043,45 @@ impl<T, const N: usize> AsMut<[T]> for InplaceVector<T, N> {
     /// assert_eq!(v, &[3]);
     /// ```
     fn as_mut(&mut self) -> &mut [T] {
+        self
+    }
+}
+
+impl<T, const N: usize> std::borrow::Borrow<[T]> for InplaceVector<T, N> {
+    /// Borrows as a slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inplace_containers::InplaceVector;
+    /// use std::borrow::Borrow;
+    ///
+    /// let mut v: InplaceVector<i32, 2> = InplaceVector::new();
+    /// v.push(1);
+    /// let s: &[i32] = v.borrow();
+    /// assert_eq!(s, &[1]);
+    /// ```
+    fn borrow(&self) -> &[T] {
+        self
+    }
+}
+
+impl<T, const N: usize> std::borrow::BorrowMut<[T]> for InplaceVector<T, N> {
+    /// Mutably borrows as a slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inplace_containers::InplaceVector;
+    /// use std::borrow::BorrowMut;
+    ///
+    /// let mut v: InplaceVector<i32, 2> = InplaceVector::new();
+    /// v.push(1);
+    /// let s: &mut [i32] = v.borrow_mut();
+    /// s[0] = 3;
+    /// assert_eq!(v, &[3]);
+    /// ```
+    fn borrow_mut(&mut self) -> &mut [T] {
         self
     }
 }
@@ -2012,10 +2132,9 @@ impl<'a, T: Clone, const N: usize> TryFrom<&'a [T]> for InplaceVector<T, N> {
 
         let mut result = InplaceVector::new();
 
-        unsafe {
-            result.set_len(count);
-            ptr::copy_nonoverlapping(slice.as_ptr(), result.as_mut_ptr(), count);
-        };
+        for elem in slice {
+            unsafe { result.unchecked_push(elem.clone()) };
+        }
 
         Ok(result)
     }
@@ -2432,6 +2551,9 @@ impl<T, const N: usize> AsRef<[T]> for IntoIter<T, N> {
 mod tests {
     use crate::inplace_vec;
     use core::cell::Cell;
+    use std::borrow::{Borrow, BorrowMut};
+    use std::cmp::Ordering;
+    use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 
     use super::*;
 
@@ -2864,6 +2986,27 @@ mod tests {
     }
 
     #[test]
+    fn ord_and_borrow_traits() {
+        let mut a = InplaceVector::<i32, 4>::new();
+        a.extend([1, 2].iter());
+        let mut b = InplaceVector::<i32, 4>::new();
+        b.extend([1, 3].iter());
+        assert_eq!(a.cmp(&b), Ordering::Less);
+
+        let as_ref: &[i32] = a.as_ref();
+        assert_eq!(as_ref, &[1, 2]);
+
+        let borrowed: &[i32] = a.borrow();
+        assert_eq!(borrowed, &[1, 2]);
+
+        let mut c = InplaceVector::<i32, 4>::new();
+        c.extend([5, 6].iter());
+        let borrowed_mut: &mut [i32] = c.borrow_mut();
+        borrowed_mut[0] = 7;
+        assert_eq!(c, &[7, 6]);
+    }
+
+    #[test]
     fn drop_behavior_managed_by_set_len() {
         let counter = Cell::new(0);
         struct DC<'a>(&'a Cell<u32>);
@@ -2968,6 +3111,35 @@ mod tests {
         assert!(InplaceVector::<i32, 3>::try_from(&arr[..]).is_err());
         let arr2 = [1, 2];
         let v = InplaceVector::<i32, 3>::try_from(&arr2[..]).unwrap();
+        assert_eq!(v, &[1, 2]);
+    }
+
+    #[test]
+    fn try_from_slice_clones_elements() {
+        #[derive(Debug)]
+        struct Counted<'a>(&'a AtomicUsize);
+
+        impl<'a> Clone for Counted<'a> {
+            fn clone(&self) -> Self {
+                self.0.fetch_add(1, AtomicOrdering::Relaxed);
+                Self(self.0)
+            }
+        }
+
+        let counter = AtomicUsize::new(0);
+        let arr = [Counted(&counter), Counted(&counter), Counted(&counter)];
+
+        let v = InplaceVector::<Counted<'_>, 4>::try_from(&arr[..]).unwrap();
+        assert_eq!(v.len(), 3);
+        assert_eq!(counter.load(AtomicOrdering::Relaxed), 3);
+    }
+
+    #[test]
+    fn extend_from_slice_within_capacity_full_fit() {
+        let mut v = InplaceVector::<i32, 6>::new();
+        let slice = [1, 2];
+        let res = v.extend_from_slice_within_capacity(&slice);
+        assert!(res.is_ok());
         assert_eq!(v, &[1, 2]);
     }
 
