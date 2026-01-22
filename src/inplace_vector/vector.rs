@@ -54,6 +54,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v.len(), 0);
     /// assert_eq!(v.capacity(), 4);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn new() -> Self {
         InplaceVector {
             data: [const { MaybeUninit::uninit() }; N],
@@ -83,6 +85,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[10]);
     /// ```
     ///
+    #[inline]
     pub unsafe fn set_len(&mut self, new_len: usize) {
         debug_assert!(new_len <= N);
         self.size = NonZeroUsize::new_unchecked(new_len.add(1));
@@ -105,6 +108,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// }
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[must_use]
+    #[inline]
     pub fn spare_capacity_mut(&mut self) -> &mut [MaybeUninit<T>] {
         let len = self.capacity() - self.len();
         let ptr = unsafe { self.data.as_mut_ptr().add(self.len()) };
@@ -123,6 +128,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.push(1);
     /// assert_eq!(v.len(), 1);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn len(&self) -> usize {
         unsafe { self.size.get().unchecked_sub(1) }
     }
@@ -137,6 +144,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// let v: InplaceVector<i32, 4> = InplaceVector::new();
     /// assert_eq!(v.capacity(), 4);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn capacity(&self) -> usize {
         N
     }
@@ -152,6 +161,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.push(1);
     /// assert_eq!(v.remaining_capacity(), 2);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn remaining_capacity(&self) -> usize {
         N - self.len()
     }
@@ -168,6 +179,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.push(1);
     /// assert!(v.is_full());
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn is_full(&self) -> bool {
         self.remaining_capacity() == 0
     }
@@ -184,6 +197,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.push(1);
     /// assert!(!v.is_empty());
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -202,6 +217,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     ///     assert_eq!(*ptr, 10);
     /// }
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn as_ptr(&self) -> *const T {
         self.data.as_ptr() as *const T
     }
@@ -221,6 +238,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// }
     /// assert_eq!(v, &[5]);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn as_mut_ptr(&mut self) -> *mut T {
         self.data.as_mut_ptr() as *mut T
     }
@@ -237,6 +256,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.push(2);
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn as_slice(&self) -> &[T] {
         let len = self.len();
         let ptr = self.as_ptr();
@@ -256,6 +277,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.as_mut_slice()[1] = 7;
     /// assert_eq!(v, &[1, 7]);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn as_mut_slice(&mut self) -> &mut [T] {
         let len = self.len();
         let ptr = self.as_mut_ptr();
@@ -286,6 +309,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[1, 2]);
     /// ```
     ///
+    #[inline]
     pub unsafe fn unchecked_push(&mut self, value: T) -> &T {
         debug_assert!(!self.is_full());
         let uninit_tail = self.spare_capacity_mut().get_unchecked_mut(0);
@@ -310,6 +334,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[10]);
     /// ```
     ///
+    #[inline]
     pub fn push(&mut self, value: T) -> &T {
         match self.push_within_capacity(value) {
             Ok(value) => value,
@@ -332,6 +357,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[1]);
     /// ```
     ///
+    #[inline]
     pub fn push_within_capacity(&mut self, value: T) -> Result<&T, T> {
         if self.is_full() {
             Err(value)
@@ -363,6 +389,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[1]);
     /// ```
     ///
+    #[inline]
     pub unsafe fn unchecked_push_mut(&mut self, value: T) -> &mut T {
         debug_assert!(!self.is_full());
         let uninit_tail = self.spare_capacity_mut().get_unchecked_mut(0);
@@ -389,6 +416,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[7]);
     /// ```
     ///
+    #[inline]
     pub fn push_mut(&mut self, value: T) -> &mut T {
         match self.push_within_capacity_mut(value) {
             Ok(value) => value,
@@ -411,6 +439,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[1]);
     /// ```
     ///
+    #[inline]
     pub fn push_within_capacity_mut(&mut self, value: T) -> Result<&mut T, T> {
         if self.is_full() {
             Err(value)
@@ -434,6 +463,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert!(v.try_extend_from_slice(&[1, 2]).is_some());
     /// assert!(v.try_extend_from_slice(&[3]).is_none());
     /// ```
+    #[inline]
     pub fn try_extend_from_slice(&mut self, other: &[T]) -> Option<&[T]>
     where
         T: Clone,
@@ -469,6 +499,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[1, 2]);
     /// ```
     ///
+    #[inline]
     pub fn extend_from_slice(&mut self, other: &[T]) -> &[T]
     where
         T: Clone,
@@ -495,6 +526,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert!(v.try_extend_from_slice_mut(&[1]).is_some());
     /// assert!(v.try_extend_from_slice_mut(&[2, 3]).is_none());
     /// ```
+    #[inline]
     pub fn try_extend_from_slice_mut(&mut self, other: &[T]) -> Option<&mut [T]>
     where
         T: Clone,
@@ -531,6 +563,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[10, 2]);
     /// ```
     ///
+    #[inline]
     pub fn extend_from_slice_mut(&mut self, other: &[T]) -> &mut [T]
     where
         T: Clone,
@@ -558,6 +591,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert!(res.is_err());
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     pub fn extend_from_slice_within_capacity<'a>(&mut self, other: &'a [T]) -> Result<(), &'a [T]>
     where
         T: Clone,
@@ -593,6 +627,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.extend_from_within(0..2);
     /// assert_eq!(v, &[1, 2, 3, 1, 2]);
     /// ```
+    #[inline]
     pub fn extend_from_within<R>(&mut self, src: R)
     where
         R: RangeBounds<usize>,
@@ -655,6 +690,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(a, &[1, 2]);
     /// assert!(b.is_empty());
     /// ```
+    #[inline]
     pub fn try_append(&mut self, other: &mut InplaceVector<T, N>) -> Option<&mut [T]> {
         let count = other.len();
         let self_len = self.len();
@@ -697,6 +733,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(a, &[1, 2]);
     /// assert!(b.is_empty());
     /// ```
+    #[inline]
     pub fn append(&mut self, other: &mut InplaceVector<T, N>) {
         if self.try_append(other).is_none() {
             panic!("InplaceVector append should not exceed capacity");
@@ -721,6 +758,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.clone_from_slice(&["x".to_string(), "y".to_string(), "z".to_string()]);
     /// assert_eq!(v, &["x", "y", "z"]);
     /// ```
+    #[inline]
     pub fn clone_from_slice(&mut self, src: &[T])
     where
         T: Clone,
@@ -752,6 +790,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.copy_from_slice(&[9, 8, 7]);
     /// assert_eq!(v, &[9, 8, 7]);
     /// ```
+    #[inline]
     pub fn copy_from_slice(&mut self, src: &[T])
     where
         T: Copy,
@@ -787,6 +826,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert!(v.is_empty());
     /// ```
     ///
+    #[inline]
     pub unsafe fn unchecked_pop(&mut self) -> T {
         debug_assert!(!self.is_empty());
         let index = self.len().unchecked_sub(1);
@@ -808,6 +848,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.push(1);
     /// assert_eq!(v.pop(), Some(1));
     /// ```
+    #[inline]
     pub fn pop(&mut self) -> Option<T> {
         if self.is_empty() {
             None
@@ -829,6 +870,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v.pop_if(|x| *x == 2), Some(2));
     /// assert_eq!(v.pop_if(|x| *x == 2), None);
     /// ```
+    #[inline]
     pub fn pop_if<Pred>(&mut self, predicate: Pred) -> Option<T>
     where
         Pred: FnOnce(&mut T) -> bool,
@@ -853,6 +895,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.clear();
     /// assert!(v.is_empty());
     /// ```
+    #[inline]
     pub fn clear(&mut self) {
         while self.pop().is_some() {}
     }
@@ -873,6 +916,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.truncate(2);
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     pub fn truncate(&mut self, new_len: usize) {
         if new_len < self.len() {
             while new_len != self.len() {
@@ -899,6 +943,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.resize_with(3, || 5);
     /// assert_eq!(v, &[1, 5, 5]);
     /// ```
+    #[inline]
     pub fn resize_with<F>(&mut self, new_len: usize, f: F)
     where
         F: FnMut() -> T,
@@ -934,6 +979,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.resize(3, 7);
     /// assert_eq!(v, &[7, 7, 7]);
     /// ```
+    #[inline]
     pub fn resize(&mut self, new_len: usize, value: T)
     where
         T: Clone,
@@ -971,6 +1017,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert!(v.try_insert(1, 2).is_some());
     /// assert!(v.try_insert(0, 3).is_none());
     /// ```
+    #[inline]
     pub fn try_insert(&mut self, index: usize, element: T) -> Option<&mut T> {
         let len = self.len();
         if index > len {
@@ -1005,6 +1052,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.insert(1, 2);
     /// assert_eq!(v, &[1, 2, 3]);
     /// ```
+    #[inline]
     pub fn insert(&mut self, index: usize, element: T) -> &mut T {
         match self.try_insert(index, element) {
             Some(value) => value,
@@ -1034,6 +1082,8 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v, &[1]);
     /// assert_eq!(tail, &[2, 3]);
     /// ```
+    #[must_use]
+    #[inline]
     pub fn split_off(&mut self, at: usize) -> Self {
         if at > self.len() {
             panic!(
@@ -1069,6 +1119,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(v.remove(0), 1);
     /// assert_eq!(v, &[2]);
     /// ```
+    #[inline]
     pub fn remove(&mut self, index: usize) -> T {
         let len = self.len();
         if index >= len {
@@ -1107,6 +1158,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(removed, 1);
     /// assert_eq!(v.len(), 2);
     /// ```
+    #[inline]
     pub fn swap_remove(&mut self, index: usize) -> T {
         let len = self.len();
         if index >= len {
@@ -1144,6 +1196,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(drained, vec![2, 3]);
     /// assert_eq!(v, &[1, 4]);
     /// ```
+    #[inline]
     pub fn drain<R>(&mut self, range: R) -> Drain<'_, T, N>
     where
         R: RangeBounds<usize>,
@@ -1206,6 +1259,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(removed, vec![2]);
     /// assert_eq!(v, &[1, 9, 8, 3]);
     /// ```
+    #[inline]
     pub fn splice<R, I>(&mut self, range: R, replace_with: I) -> Splice<T, N>
     where
         R: RangeBounds<usize>,
@@ -1285,6 +1339,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.dedup_by(|a, b| a == b);
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     pub fn dedup_by<F>(&mut self, mut same_bucket: F)
     where
         F: FnMut(&mut T, &mut T) -> bool,
@@ -1331,6 +1386,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.dedup();
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     pub fn dedup(&mut self)
     where
         T: PartialEq,
@@ -1353,6 +1409,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.dedup_by_key(|x| *x % 2);
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     pub fn dedup_by_key<F, K>(&mut self, mut key: F)
     where
         F: FnMut(&mut T) -> K,
@@ -1378,6 +1435,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// assert_eq!(removed, vec![1, 3]);
     /// assert_eq!(v, &[2]);
     /// ```
+    #[inline]
     pub fn extract_if<F>(&mut self, predicate: F) -> ExtractIf<'_, T, N, F>
     where
         F: FnMut(&mut T) -> bool,
@@ -1408,6 +1466,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// v.retain(|x| *x % 2 == 1);
     /// assert_eq!(v, &[1, 3]);
     /// ```
+    #[inline]
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&T) -> bool,
@@ -1431,6 +1490,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// });
     /// assert_eq!(v, &[4]);
     /// ```
+    #[inline]
     pub fn retain_mut<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut T) -> bool,
@@ -1463,6 +1523,7 @@ impl<T, const N: usize> FromIterator<T> for InplaceVector<T, N> {
     /// let v: InplaceVector<i32, 3> = [1, 2].into_iter().collect();
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut result = Self::new();
         result.extend(iter);
@@ -1486,6 +1547,7 @@ impl<T, const N: usize> Extend<T> for InplaceVector<T, N> {
     /// v.extend([1, 2]);
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         let it = iter.into_iter();
         match it.size_hint() {
@@ -1524,6 +1586,7 @@ impl<'a, T: Clone, const N: usize> Extend<&'a T> for InplaceVector<T, N> {
     /// v.extend(src.iter());
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, iter: I) {
         let it = iter.into_iter();
         match it.size_hint() {
@@ -1561,6 +1624,7 @@ impl<const N: usize> std::io::Write for InplaceVector<u8, N> {
     /// assert_eq!(written, 3);
     /// assert_eq!(v, &[1, 2, 3]);
     /// ```
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let old_len = self.len();
         let min = self.remaining_capacity().min(buf.len());
@@ -1584,12 +1648,14 @@ impl<const N: usize> std::io::Write for InplaceVector<u8, N> {
     /// v.write(&[1, 2]).unwrap();
     /// v.flush().unwrap();
     /// ```
+    #[inline]
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
 }
 
 impl<T, const N: usize> Drop for InplaceVector<T, N> {
+    #[inline]
     fn drop(&mut self) {
         self.clear();
     }
@@ -1615,6 +1681,7 @@ impl<T, const N: usize> IntoIterator for InplaceVector<T, N> {
     /// assert_eq!(iter.next(), Some(2));
     /// assert_eq!(iter.next(), None);
     /// ```
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         let len = self.len();
         let data = unsafe { std::ptr::read(&self.data) };
@@ -1645,6 +1712,7 @@ impl<'a, T, const N: usize> IntoIterator for &'a InplaceVector<T, N> {
     /// let mut iter = (&v).into_iter();
     /// assert_eq!(iter.next(), Some(&1));
     /// ```
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.as_slice().iter()
     }
@@ -1670,6 +1738,7 @@ impl<'a, T, const N: usize> IntoIterator for &'a mut InplaceVector<T, N> {
     /// }
     /// assert_eq!(v, &[2, 4]);
     /// ```
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.as_mut_slice().iter_mut()
     }
@@ -1688,6 +1757,7 @@ impl<T: Clone, const N: usize> Clone for InplaceVector<T, N> {
     /// let c = v.clone();
     /// assert_eq!(c, &[1]);
     /// ```
+    #[inline]
     fn clone(&self) -> Self {
         let mut result = Self::new();
 
@@ -1710,6 +1780,7 @@ impl<T: Clone, const N: usize> Default for InplaceVector<T, N> {
     /// let v: InplaceVector<i32, 2> = InplaceVector::default();
     /// assert!(v.is_empty());
     /// ```
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -1729,6 +1800,7 @@ impl<T, const N: usize> Deref for InplaceVector<T, N> {
     /// v.push(1);
     /// assert_eq!(&*v, &[1]);
     /// ```
+    #[inline]
     fn deref(&self) -> &Self::Target {
         self.as_slice()
     }
@@ -1747,6 +1819,7 @@ impl<T, const N: usize> DerefMut for InplaceVector<T, N> {
     /// v[0] = 5;
     /// assert_eq!(v, &[5]);
     /// ```
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut_slice()
     }
@@ -1770,6 +1843,7 @@ where
     /// v.push(2);
     /// assert_eq!(v[1], 2);
     /// ```
+    #[inline]
     fn index(&self, index: I) -> &Self::Output {
         Index::index(self.as_slice(), index)
     }
@@ -1792,6 +1866,7 @@ where
     /// v[0] = 10;
     /// assert_eq!(v, &[10, 2]);
     /// ```
+    #[inline]
     fn index_mut(&mut self, index: I) -> &mut <InplaceVector<T, N> as Index<I>>::Output {
         IndexMut::index_mut(self.as_mut_slice(), index)
     }
@@ -1814,6 +1889,7 @@ where
     /// b.push(1);
     /// assert_eq!(a, b);
     /// ```
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.as_slice() == other.as_slice()
     }
@@ -1835,6 +1911,7 @@ where
     /// v.push(2);
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     fn eq(&self, other: &&[U; M]) -> bool {
         self.as_slice().eq(*other)
     }
@@ -1857,6 +1934,7 @@ where
     /// v.push(2);
     /// assert_eq!(v, &mut arr);
     /// ```
+    #[inline]
     fn eq(&self, other: &&mut [U; M]) -> bool {
         self.as_slice().eq(*other)
     }
@@ -1879,6 +1957,7 @@ where
     /// let slice: &[i32] = &[1, 2];
     /// assert_eq!(v, slice);
     /// ```
+    #[inline]
     fn eq(&self, other: &&[U]) -> bool {
         self.as_slice().eq(*other)
     }
@@ -1901,6 +1980,7 @@ where
     /// v.push(2);
     /// assert_eq!(v, &mut slice[..]);
     /// ```
+    #[inline]
     fn eq(&self, other: &&mut [U]) -> bool {
         self.as_slice().eq(*other)
     }
@@ -1925,6 +2005,7 @@ where
     /// b.push(2);
     /// assert!(a < b);
     /// ```
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.as_slice().partial_cmp(other.as_slice())
     }
@@ -1947,6 +2028,7 @@ where
     /// b.push(2);
     /// assert!(a.cmp(&b).is_lt());
     /// ```
+    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_slice().cmp(other.as_slice())
     }
@@ -1970,6 +2052,7 @@ where
     /// let mut hasher = DefaultHasher::new();
     /// v.hash(&mut hasher);
     /// ```
+    #[inline]
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_slice().hash(state);
     }
@@ -1987,6 +2070,7 @@ impl<T: fmt::Debug, const N: usize> Debug for InplaceVector<T, N> {
     /// v.push(1);
     /// assert_eq!(format!("{:?}", v), "[1]");
     /// ```
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
@@ -2005,6 +2089,7 @@ impl<T, const N: usize> AsMut<InplaceVector<T, N>> for InplaceVector<T, N> {
     /// r.push(1);
     /// assert_eq!(v, &[1]);
     /// ```
+    #[inline]
     fn as_mut(&mut self) -> &mut InplaceVector<T, N> {
         self
     }
@@ -2023,6 +2108,7 @@ impl<T, const N: usize> AsRef<[T]> for InplaceVector<T, N> {
     /// let s: &[i32] = v.as_ref();
     /// assert_eq!(s, &[1]);
     /// ```
+    #[inline]
     fn as_ref(&self) -> &[T] {
         self
     }
@@ -2042,6 +2128,7 @@ impl<T, const N: usize> AsMut<[T]> for InplaceVector<T, N> {
     /// s[0] = 3;
     /// assert_eq!(v, &[3]);
     /// ```
+    #[inline]
     fn as_mut(&mut self) -> &mut [T] {
         self
     }
@@ -2061,6 +2148,7 @@ impl<T, const N: usize> std::borrow::Borrow<[T]> for InplaceVector<T, N> {
     /// let s: &[i32] = v.borrow();
     /// assert_eq!(s, &[1]);
     /// ```
+    #[inline]
     fn borrow(&self) -> &[T] {
         self
     }
@@ -2081,6 +2169,7 @@ impl<T, const N: usize> std::borrow::BorrowMut<[T]> for InplaceVector<T, N> {
     /// s[0] = 3;
     /// assert_eq!(v, &[3]);
     /// ```
+    #[inline]
     fn borrow_mut(&mut self) -> &mut [T] {
         self
     }
@@ -2097,6 +2186,7 @@ impl<T, const N: usize> From<[T; N]> for InplaceVector<T, N> {
     /// let v: InplaceVector<i32, 3> = InplaceVector::from([1, 2, 3]);
     /// assert_eq!(v, &[1, 2, 3]);
     /// ```
+    #[inline]
     fn from(value: [T; N]) -> Self {
         let mut result = Self::new();
         unsafe {
@@ -2124,6 +2214,7 @@ impl<'a, T: Clone, const N: usize> TryFrom<&'a [T]> for InplaceVector<T, N> {
     /// let v: InplaceVector<i32, 3> = InplaceVector::try_from(&slice[..]).unwrap();
     /// assert_eq!(v, &[1, 2]);
     /// ```
+    #[inline]
     fn try_from(slice: &'a [T]) -> Result<Self, Self::Error> {
         let count = slice.len();
         if count > N {
@@ -2158,6 +2249,7 @@ impl<T, const N: usize> TryFrom<InplaceVector<T, N>> for [T; N] {
     /// let arr: [i32; 2] = <[i32; 2]>::try_from(v).unwrap();
     /// assert_eq!(arr, [1, 2]);
     /// ```
+    #[inline]
     fn try_from(mut vec: InplaceVector<T, N>) -> Result<[T; N], InplaceVector<T, N>> {
         if vec.len() != N {
             return Err(vec);
@@ -2191,6 +2283,7 @@ impl<T: Clone, const N: usize> TryFrom<&InplaceVector<T, N>> for [T; N] {
     /// let arr: [i32; 2] = <[i32; 2]>::try_from(&v).unwrap();
     /// assert_eq!(arr, [1, 2]);
     /// ```
+    #[inline]
     fn try_from(vec: &InplaceVector<T, N>) -> Result<[T; N], InplaceVectorError> {
         if vec.len() != N {
             return Err(InplaceVectorError::LengthMismatch {
@@ -2241,14 +2334,17 @@ pub struct Splice<T, const N: usize> {
 }
 
 impl<'a, T, const N: usize> Drain<'a, T, N> {
+    #[inline]
     fn as_ptr(&self) -> *const T {
         unsafe { (*self.vec).as_ptr() }
     }
 
+    #[inline]
     fn as_mut_ptr(&mut self) -> *mut T {
         unsafe { (*self.vec).as_mut_ptr() }
     }
 
+    #[inline]
     fn len(&self) -> usize {
         self.end - self.cur
     }
@@ -2257,6 +2353,7 @@ impl<'a, T, const N: usize> Drain<'a, T, N> {
 impl<'a, T, const N: usize> Iterator for Drain<'a, T, N> {
     type Item = T;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.len() == 0 {
             None
@@ -2267,6 +2364,7 @@ impl<'a, T, const N: usize> Iterator for Drain<'a, T, N> {
         }
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let len = self.len();
         (len, Some(len))
@@ -2274,6 +2372,7 @@ impl<'a, T, const N: usize> Iterator for Drain<'a, T, N> {
 }
 
 impl<'a, T, const N: usize> DoubleEndedIterator for Drain<'a, T, N> {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.len() == 0 {
             None
@@ -2289,6 +2388,7 @@ impl<'a, T, const N: usize> ExactSizeIterator for Drain<'a, T, N> {}
 impl<'a, T, const N: usize> FusedIterator for Drain<'a, T, N> {}
 
 impl<'a, T, const N: usize> Drop for Drain<'a, T, N> {
+    #[inline]
     fn drop(&mut self) {
         unsafe {
             for index in self.cur..self.end {
@@ -2316,6 +2416,7 @@ impl<'a, T, const N: usize, F> ExtractIf<'a, T, N, F>
 where
     F: FnMut(&mut T) -> bool,
 {
+    #[inline]
     fn finish(&mut self) {
         if self.finished {
             return;
@@ -2334,6 +2435,7 @@ where
 {
     type Item = T;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
             let base = (*self.vec).as_mut_ptr();
@@ -2354,6 +2456,7 @@ where
         }
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         (0, Some(self.len.saturating_sub(self.read)))
     }
@@ -2368,6 +2471,7 @@ impl<'a, T, const N: usize, F> Drop for ExtractIf<'a, T, N, F>
 where
     F: FnMut(&mut T) -> bool,
 {
+    #[inline]
     fn drop(&mut self) {
         if self.finished {
             return;
@@ -2395,16 +2499,19 @@ where
 impl<T, const N: usize> Iterator for Splice<T, N> {
     type Item = T;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.iter.size_hint()
     }
 }
 
 impl<T, const N: usize> DoubleEndedIterator for Splice<T, N> {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         self.iter.next_back()
     }
@@ -2415,18 +2522,22 @@ impl<T, const N: usize> ExactSizeIterator for Splice<T, N> {}
 impl<T, const N: usize> FusedIterator for Splice<T, N> {}
 
 impl<T, const N: usize> IntoIter<T, N> {
+    #[inline]
     fn as_ptr(&self) -> *const T {
         unsafe { (self.data.as_ptr() as *const T).add(self.begin) }
     }
 
+    #[inline]
     fn as_mut_ptr(&mut self) -> *mut T {
         unsafe { (self.data.as_mut_ptr() as *mut T).add(self.begin) }
     }
 
+    #[inline]
     const fn len(&self) -> usize {
         self.end - self.begin
     }
 
+    #[inline]
     const fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -2444,6 +2555,7 @@ impl<T, const N: usize> IntoIter<T, N> {
     /// let iter = v.into_iter();
     /// assert_eq!(iter.as_slice(), &[1, 2]);
     /// ```
+    #[inline]
     pub fn as_slice(&self) -> &[T] {
         let ptr = self.as_ptr();
         unsafe { std::slice::from_raw_parts(ptr, self.len()) }
@@ -2465,23 +2577,27 @@ impl<T, const N: usize> IntoIter<T, N> {
     /// slice[0] = 5;
     /// assert_eq!(iter.as_slice(), &[5, 2]);
     /// ```
+    #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         let ptr = self.as_mut_ptr();
         unsafe { std::slice::from_raw_parts_mut(ptr, self.len()) }
     }
 
+    #[inline]
     unsafe fn unchecked_next(&mut self) -> T {
         let next_uninit = self.data.get_unchecked(self.begin);
         self.begin += 1;
         next_uninit.assume_init_read()
     }
 
+    #[inline]
     unsafe fn unchecked_back(&mut self) -> T {
         let back_uninit = self.data.get_unchecked(self.end - 1);
         self.end -= 1;
         back_uninit.assume_init_read()
     }
 
+    #[inline]
     unsafe fn unchecked_push(&mut self, value: T) {
         let back_uninit = self.data.get_unchecked_mut(self.end);
         self.end += 1;
@@ -2492,6 +2608,7 @@ impl<T, const N: usize> IntoIter<T, N> {
 impl<T, const N: usize> Iterator for IntoIter<T, N> {
     type Item = T;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.is_empty() {
             None
@@ -2502,6 +2619,7 @@ impl<T, const N: usize> Iterator for IntoIter<T, N> {
 }
 
 impl<T, const N: usize> DoubleEndedIterator for IntoIter<T, N> {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.is_empty() {
             None
@@ -2514,12 +2632,14 @@ impl<T, const N: usize> DoubleEndedIterator for IntoIter<T, N> {
 impl<T, const N: usize> FusedIterator for IntoIter<T, N> {}
 
 impl<T, const N: usize> Drop for IntoIter<T, N> {
+    #[inline]
     fn drop(&mut self) {
         while self.next_back().is_some() {}
     }
 }
 
 impl<T, const N: usize> Default for IntoIter<T, N> {
+    #[inline]
     fn default() -> Self {
         Self {
             data: [const { MaybeUninit::uninit() }; N],
@@ -2530,6 +2650,7 @@ impl<T, const N: usize> Default for IntoIter<T, N> {
 }
 
 impl<T: Clone, const N: usize> Clone for IntoIter<T, N> {
+    #[inline]
     fn clone(&self) -> Self {
         let mut result = Self::default();
         for value in self.as_slice().iter().cloned() {
@@ -2542,6 +2663,7 @@ impl<T: Clone, const N: usize> Clone for IntoIter<T, N> {
 }
 
 impl<T, const N: usize> AsRef<[T]> for IntoIter<T, N> {
+    #[inline]
     fn as_ref(&self) -> &[T] {
         self.as_slice()
     }
@@ -2558,6 +2680,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[inline]
     fn test_iter_clone() {
         let vec = inplace_vec![
             "1".to_owned(),
@@ -2575,6 +2698,7 @@ mod tests {
         assert!(clone.eq(["2", "3", "4", "5"]));
     }
     #[test]
+    #[inline]
     fn test_macro() {
         let deduced_size = inplace_vec![
             "1".to_owned(),
@@ -2612,8 +2736,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn basic_push_pop_and_len_capacity() {
-        let mut v = InplaceVector::<i32, 4>::new();
+        let mut v = inplace_vec![4;];
         assert_eq!(v.len(), 0);
         assert_eq!(v.capacity(), 4);
         v.push(1);
@@ -2627,16 +2752,18 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[inline]
     fn push_panics_when_full() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         v.push(10);
         v.push(20);
         v.push(30);
     }
 
     #[test]
+    #[inline]
     fn push_within_capacity_behavior() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         assert!(v.push_within_capacity(5).is_ok());
         assert!(v.push_within_capacity(6).is_ok());
         assert!(v.push_within_capacity(7).is_err());
@@ -2644,8 +2771,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn push_mut_returns_last_element() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         let r = v.push_mut(1);
         *r = 5;
         assert_eq!(v, &[5]);
@@ -2656,8 +2784,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn as_slice_and_mut_slice_and_index() {
-        let mut v = InplaceVector::<i32, 4>::new();
+        let mut v = inplace_vec![4;];
         v.push(7);
         v.push(8);
         assert_eq!(v, &[7, 8]);
@@ -2666,8 +2795,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn iter_and_iter_mut() {
-        let mut v = InplaceVector::<i32, 4>::new();
+        let mut v = inplace_vec![4;];
         v.push(0);
         v.push(1);
         v.push(2);
@@ -2682,15 +2812,16 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn append_moves_and_empties_other() {
-        let mut a = InplaceVector::<String, 6>::new();
-        a.push("1".into());
-        a.push("2".into());
+        let mut a = inplace_vec![6;];
+        a.push("1".to_string());
+        a.push("2".to_string());
 
-        let mut b = InplaceVector::<String, 6>::new();
-        b.push("3".into());
-        b.push("4".into());
-        b.push("5".into());
+        let mut b = inplace_vec![6;];
+        b.push("3".to_string());
+        b.push("4".to_string());
+        b.push("5".to_string());
 
         a.append(&mut b);
         assert_eq!(a, &["1", "2", "3", "4", "5"]);
@@ -2698,8 +2829,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn split_off_edges_and_middle() {
-        let mut v = InplaceVector::<i32, 8>::new();
+        let mut v = inplace_vec![8;];
         for i in 0..6 {
             v.push(i);
         }
@@ -2708,7 +2840,7 @@ mod tests {
         assert_eq!(v, &[0, 1]);
         assert_eq!(o1, &[2, 3, 4, 5]);
 
-        let mut v2 = InplaceVector::<i32, 4>::new();
+        let mut v2 = inplace_vec![4;];
         for i in 0..4 {
             v2.push(i);
         }
@@ -2716,7 +2848,7 @@ mod tests {
         assert_eq!(v2, &[]);
         assert_eq!(o2, &[0, 1, 2, 3]);
 
-        let mut v3 = InplaceVector::<i32, 4>::new();
+        let mut v3 = inplace_vec![4;];
         for i in 0..3 {
             v3.push(i);
         }
@@ -2726,8 +2858,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn insert_remove_swap_remove() {
-        let mut v = InplaceVector::<i32, 6>::new();
+        let mut v = inplace_vec![6;];
         v.push(1);
         v.push(3);
         v.push(4);
@@ -2747,8 +2880,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn insert_and_extract_if() {
-        let mut v = InplaceVector::<i32, 4>::new();
+        let mut v = inplace_vec![4;];
         v.push(1);
         v.insert(1, 2);
 
@@ -2758,16 +2892,18 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn try_insert_when_full_returns_none() {
-        let mut v = InplaceVector::<i32, 1>::new();
+        let mut v = inplace_vec![1;];
         v.push(1);
         assert!(v.try_insert(0, 2).is_none());
         assert_eq!(v, &[1]);
     }
 
     #[test]
+    #[inline]
     fn try_capacity_error_paths() {
-        let mut v = InplaceVector::<i32, 3>::new();
+        let mut v = inplace_vec![3;];
         v.push(1);
         v.push(2);
 
@@ -2778,8 +2914,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn try_extend_and_append_success() {
-        let mut v = InplaceVector::<i32, 4>::new();
+        let mut v = inplace_vec![4;];
         let added = v
             .try_extend_from_slice(&[1, 2])
             .expect("extend should succeed");
@@ -2791,9 +2928,9 @@ mod tests {
         added_mut[0] = 4;
         assert_eq!(v, &[1, 2, 4]);
 
-        let mut a = InplaceVector::<i32, 4>::new();
+        let mut a = inplace_vec![4;];
         a.push(10);
-        let mut b = InplaceVector::<i32, 4>::new();
+        let mut b = inplace_vec![4;];
         b.push(20);
         b.push(30);
         assert!(a.try_append(&mut b).is_some());
@@ -2802,11 +2939,12 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn try_append_errors() {
-        let mut a = InplaceVector::<i32, 2>::new();
+        let mut a = inplace_vec![2;];
         a.push(1);
 
-        let mut b = InplaceVector::<i32, 2>::new();
+        let mut b = inplace_vec![2;];
         b.push(2);
         b.push(3);
 
@@ -2816,8 +2954,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn splice_replaces_range() {
-        let mut v = InplaceVector::<i32, 5>::new();
+        let mut v = inplace_vec![5;];
         v.push(1);
         v.push(2);
         v.push(3);
@@ -2829,15 +2968,16 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn retain_and_retain_mut() {
-        let mut v = InplaceVector::<i32, 8>::new();
+        let mut v = inplace_vec![8;];
         for i in 0..8 {
             v.push(i);
         }
         v.retain(|&x| x % 2 == 0);
         assert_eq!(v, &[0, 2, 4, 6]);
 
-        let mut v2 = InplaceVector::<i32, 8>::new();
+        let mut v2 = inplace_vec![8;];
         for i in 0..8 {
             v2.push(i);
         }
@@ -2850,8 +2990,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn clone_from_slice_and_copy_from_slice() {
-        let mut v = InplaceVector::<String, 3>::new();
+        let mut v = inplace_vec![3;];
         v.push("a".to_string());
         v.push("b".to_string());
         v.push("c".to_string());
@@ -2860,7 +3001,7 @@ mod tests {
         v.clone_from_slice(&src);
         assert_eq!(v, &["x".to_string(), "y".to_string(), "z".to_string()]);
 
-        let mut c = InplaceVector::<u32, 3>::new();
+        let mut c = inplace_vec![3;];
         c.push(1);
         c.push(2);
         c.push(3);
@@ -2871,6 +3012,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn from_array_and_try_from_slice() {
         let arr = [1u8, 2u8, 3u8, 4u8];
         let v: InplaceVector<u8, 4> = InplaceVector::from(arr);
@@ -2886,8 +3028,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn try_from_into_array_success_and_failure() {
-        let mut v = InplaceVector::<i32, 3>::new();
+        let mut v = inplace_vec![3;];
         v.push(1);
         v.push(2);
         v.push(3);
@@ -2896,15 +3039,16 @@ mod tests {
         assert!(arr_res.is_ok());
         assert_eq!(arr_res.unwrap(), [1, 2, 3]);
 
-        let mut v2 = InplaceVector::<i32, 3>::new();
+        let mut v2 = inplace_vec![3;];
         v2.push(4);
         let conv: Result<[i32; 3], _> = <[i32; 3]>::try_from(v2);
         assert!(conv.is_err());
     }
 
     #[test]
+    #[inline]
     fn try_from_ref_into_array() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         v.push(1);
         v.push(2);
 
@@ -2913,8 +3057,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn into_iter_consumes_and_double_ended() {
-        let mut v = InplaceVector::<i32, 5>::new();
+        let mut v = inplace_vec![5;];
         for i in 0..4 {
             v.push(i);
         }
@@ -2927,8 +3072,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn spare_capacity_and_set_len_manual_init() {
-        let mut v = InplaceVector::<i32, 6>::new();
+        let mut v = inplace_vec![6;];
         v.push(1);
         v.push(2);
 
@@ -2944,8 +3090,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn resize_and_resize_with_and_truncate_clear() {
-        let mut v = InplaceVector::<i32, 6>::new();
+        let mut v = inplace_vec![6;];
         v.push(1);
         v.push(2);
 
@@ -2963,8 +3110,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn pop_if_checks_last_elem() {
-        let mut v = InplaceVector::<i32, 4>::new();
+        let mut v = inplace_vec![4;];
         v.push(5);
         v.push(10);
 
@@ -2977,6 +3125,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn default_and_clone_and_debug() {
         let mut v = InplaceVector::<i32, 4>::default();
         v.push(3);
@@ -2986,10 +3135,11 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn ord_and_borrow_traits() {
-        let mut a = InplaceVector::<i32, 4>::new();
+        let mut a = inplace_vec![4;];
         a.extend([1, 2].iter());
-        let mut b = InplaceVector::<i32, 4>::new();
+        let mut b = inplace_vec![4;];
         b.extend([1, 3].iter());
         assert_eq!(a.cmp(&b), Ordering::Less);
 
@@ -2999,7 +3149,7 @@ mod tests {
         let borrowed: &[i32] = a.borrow();
         assert_eq!(borrowed, &[1, 2]);
 
-        let mut c = InplaceVector::<i32, 4>::new();
+        let mut c = inplace_vec![4;];
         c.extend([5, 6].iter());
         let borrowed_mut: &mut [i32] = c.borrow_mut();
         borrowed_mut[0] = 7;
@@ -3007,17 +3157,19 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn drop_behavior_managed_by_set_len() {
         let counter = Cell::new(0);
         struct DC<'a>(&'a Cell<u32>);
         impl<'a> Drop for DC<'a> {
+            #[inline]
             fn drop(&mut self) {
                 self.0.set(self.0.get() + 1);
             }
         }
 
         {
-            let mut v = InplaceVector::<DC, 4>::new();
+            let mut v = inplace_vec![4;];
             v.push(DC(&counter));
             v.push(DC(&counter));
 
@@ -3030,16 +3182,18 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "insertion index")]
+    #[inline]
     fn insert_out_of_bounds_panics() {
-        let mut v = InplaceVector::<i32, 3>::new();
+        let mut v = inplace_vec![3;];
         v.push(1);
         v.insert(2, 5); // len is 1, index 2 is invalid
     }
 
     #[test]
     #[should_panic(expected = "insert call should not exceed capacity")]
+    #[inline]
     fn insert_when_full_panics() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         v.push(1);
         v.push(2);
         v.insert(1, 3);
@@ -3047,32 +3201,36 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "removal index")]
+    #[inline]
     fn remove_out_of_bounds_panics() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         v.push(1);
         v.remove(1);
     }
 
     #[test]
     #[should_panic(expected = "removal index")]
+    #[inline]
     fn swap_remove_out_of_bounds_panics() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         v.push(1);
         v.swap_remove(1);
     }
 
     #[test]
     #[should_panic(expected = "range out of bounds")]
+    #[inline]
     fn drain_out_of_bounds_panics() {
-        let mut v = InplaceVector::<i32, 3>::new();
+        let mut v = inplace_vec![3;];
         v.push(1);
         v.push(2);
         v.drain(0..4);
     }
 
     #[test]
+    #[inline]
     fn drain_removes_correct_range() {
-        let mut v = InplaceVector::<i32, 5>::new();
+        let mut v = inplace_vec![5;];
         for i in 0..5 {
             v.push(i);
         }
@@ -3082,15 +3240,16 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn split_off_at_len_and_zero() {
-        let mut v = InplaceVector::<i32, 3>::new();
+        let mut v = inplace_vec![3;];
         v.push(1);
         v.push(2);
         let tail = v.split_off(2);
         assert_eq!(tail, &[]);
         assert_eq!(v, &[1, 2]);
 
-        let mut v2 = InplaceVector::<i32, 3>::new();
+        let mut v2 = inplace_vec![3;];
         v2.push(1);
         let head = v2.split_off(0);
         assert_eq!(head, &[1]);
@@ -3099,13 +3258,15 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[inline]
     fn extend_from_slice_panics_when_too_big() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         let slice = [1, 2, 3];
         v.extend_from_slice(&slice);
     }
 
     #[test]
+    #[inline]
     fn try_from_slice_failure_and_success() {
         let arr = [1, 2, 3, 4];
         assert!(InplaceVector::<i32, 3>::try_from(&arr[..]).is_err());
@@ -3115,11 +3276,13 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn try_from_slice_clones_elements() {
         #[derive(Debug)]
         struct Counted<'a>(&'a AtomicUsize);
 
         impl<'a> Clone for Counted<'a> {
+            #[inline]
             fn clone(&self) -> Self {
                 self.0.fetch_add(1, AtomicOrdering::Relaxed);
                 Self(self.0)
@@ -3135,8 +3298,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn extend_from_slice_within_capacity_full_fit() {
-        let mut v = InplaceVector::<i32, 6>::new();
+        let mut v = inplace_vec![6;];
         let slice = [1, 2];
         let res = v.extend_from_slice_within_capacity(&slice);
         assert!(res.is_ok());
@@ -3145,21 +3309,24 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[inline]
     fn resize_panics_when_exceeds_capacity() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         v.resize(3, 1);
     }
 
     #[test]
     #[should_panic]
+    #[inline]
     fn resize_with_panics_when_exceeds_capacity() {
-        let mut v = InplaceVector::<i32, 2>::new();
+        let mut v = inplace_vec![2;];
         v.resize_with(3, || 1);
     }
 
     #[test]
+    #[inline]
     fn dedup_variants() {
-        let mut v = InplaceVector::<i32, 5>::new();
+        let mut v = inplace_vec![5;];
         v.push(1);
         v.push(1);
         v.push(2);
@@ -3168,7 +3335,7 @@ mod tests {
         v.dedup();
         assert_eq!(v, &[1, 2, 3]);
 
-        let mut v2 = InplaceVector::<i32, 10>::new();
+        let mut v2 = inplace_vec![10;];
         v2.push(1);
         v2.push(1);
         v2.push(2);
@@ -3182,8 +3349,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn dedup_by_key_example() {
-        let mut v = InplaceVector::<i32, 5>::new();
+        let mut v = inplace_vec![5;];
         v.push(1);
         v.push(3);
         v.push(2);
@@ -3194,11 +3362,12 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[inline]
     fn append_panics_when_overflow() {
-        let mut a = InplaceVector::<i32, 2>::new();
+        let mut a = inplace_vec![2;];
         a.push(1);
 
-        let mut b = InplaceVector::<i32, 2>::new();
+        let mut b = inplace_vec![2;];
         b.push(2);
         b.push(3);
 
@@ -3206,8 +3375,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn into_iter_clone_and_double_ended() {
-        let mut v = InplaceVector::<i32, 3>::new();
+        let mut v = inplace_vec![3;];
         v.push(10);
         v.push(20);
         let mut iter = v.clone().into_iter();
@@ -3221,8 +3391,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn write_trait_behavior() {
-        let mut v = InplaceVector::<u8, 4>::new();
+        let mut v = inplace_vec![4;];
         let buf = [1, 2, 3, 4, 5];
         let written = std::io::Write::write(&mut v, &buf).unwrap();
         assert_eq!(written, 4);

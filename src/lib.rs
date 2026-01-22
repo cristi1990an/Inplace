@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "nightly", feature(pattern))]
+
 #[cfg(feature = "inplace_vector")]
 mod inplace_vector;
 

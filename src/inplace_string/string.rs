@@ -19,6 +19,7 @@ mod details {
     /// in UTF-8.
     ///
     /// This function assumes `code` is a valid Unicode scalar value.
+    #[inline]
     const fn len_utf8(code: u32) -> usize {
         match code {
             ..MAX_ONE_B => 1,
@@ -82,6 +83,9 @@ use core::{
     str::FromStr,
 };
 
+#[cfg(feature = "nightly")]
+use core::str::pattern::Pattern;
+
 use crate::InplaceVector;
 
 /// A fixed-capacity, UTF-8 encoded string stored inline.
@@ -105,6 +109,7 @@ pub struct InplaceError {
 }
 
 impl std::fmt::Display for InplaceError {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -115,6 +120,7 @@ impl std::fmt::Display for InplaceError {
 }
 
 impl std::error::Error for InplaceError {
+    #[inline]
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
@@ -127,12 +133,14 @@ pub enum InplaceUtf8Error {
 }
 
 impl std::error::Error for InplaceUtf8Error {
+    #[inline]
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
 }
 
 impl std::fmt::Display for InplaceUtf8Error {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InplaceUtf8Error::Utf8Error(utf8_error) => write!(f, "{}", utf8_error),
@@ -155,6 +163,8 @@ impl<const N: usize> InplaceString<N> {
     /// assert!(s.is_empty());
     /// assert_eq!(s.capacity(), 8);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn new() -> Self {
         InplaceString {
             data: [const { 0 }; N],
@@ -174,6 +184,8 @@ impl<const N: usize> InplaceString<N> {
     /// let s: InplaceString<8> = "hi".try_into().unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[must_use]
+    #[inline]
     pub fn as_str(&self) -> &str {
         unsafe { str::from_utf8_unchecked(self.data.get_unchecked(..self.len())) }
     }
@@ -189,6 +201,8 @@ impl<const N: usize> InplaceString<N> {
     /// s.as_mut_str().make_ascii_uppercase();
     /// assert_eq!(s, "HI");
     /// ```
+    #[must_use]
+    #[inline]
     pub fn as_mut_str(&mut self) -> &mut str {
         let len = self.len();
         unsafe { str::from_utf8_unchecked_mut(self.data.get_unchecked_mut(..len)) }
@@ -204,6 +218,8 @@ impl<const N: usize> InplaceString<N> {
     /// let s: InplaceString<8> = "hi".try_into().unwrap();
     /// assert_eq!(s.as_bytes(), &[104, 105]);
     /// ```
+    #[must_use]
+    #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         &self.data[..self.len()]
     }
@@ -218,6 +234,8 @@ impl<const N: usize> InplaceString<N> {
     /// let s: InplaceString<4> = InplaceString::new();
     /// assert_eq!(s.capacity(), 4);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn capacity(&self) -> usize {
         N
     }
@@ -233,6 +251,8 @@ impl<const N: usize> InplaceString<N> {
     /// s.push_str("hi");
     /// assert_eq!(s.remaining_capacity(), 2);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn remaining_capacity(&self) -> usize {
         N - self.len()
     }
@@ -249,6 +269,8 @@ impl<const N: usize> InplaceString<N> {
     /// s.push_str("hi");
     /// assert!(s.is_full());
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn is_full(&self) -> bool {
         self.remaining_capacity() == 0
     }
@@ -271,6 +293,7 @@ impl<const N: usize> InplaceString<N> {
     /// }
     /// assert_eq!(s, "a");
     /// ```
+    #[inline]
     pub unsafe fn unchecked_push(&mut self, ch: char) {
         let len = self.len();
         let ch_len = ch.len_utf8();
@@ -292,6 +315,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert!(s.try_push('a').is_ok());
     /// assert!(s.try_push('b').is_err());
     /// ```
+    #[inline]
     pub fn try_push(&mut self, ch: char) -> Result<(), InplaceError> {
         let ch_len = ch.len_utf8();
         if self.remaining_capacity() < ch_len {
@@ -321,6 +345,7 @@ impl<const N: usize> InplaceString<N> {
     /// s.push('a');
     /// assert_eq!(s, "a");
     /// ```
+    #[inline]
     pub fn push(&mut self, ch: char) {
         self.try_push(ch).unwrap();
     }
@@ -346,6 +371,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s, "hi");
     /// ```
     ///
+    #[inline]
     pub unsafe fn unchecked_push_str(&mut self, string: &str) {
         let string_len = string.len();
         debug_assert!(string_len <= self.remaining_capacity());
@@ -370,6 +396,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert!(s.try_push_str("hi").is_ok());
     /// assert!(s.try_push_str("too").is_err());
     /// ```
+    #[inline]
     pub fn try_push_str(&mut self, string: &str) -> Result<(), InplaceError> {
         let string_len = string.len();
         if self.remaining_capacity() < string_len {
@@ -401,6 +428,7 @@ impl<const N: usize> InplaceString<N> {
     /// s.push_str("hi");
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     pub fn push_str(&mut self, string: &str) {
         self.try_push_str(string).unwrap();
     }
@@ -427,6 +455,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s, "abc");
     /// ```
     ///
+    #[inline]
     pub unsafe fn unchecked_insert(&mut self, idx: usize, ch: char) {
         assert!(self.is_char_boundary(idx));
         debug_assert!(ch.len_utf8() <= self.remaining_capacity());
@@ -463,6 +492,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s, "aCDb");
     /// ```
     ///
+    #[inline]
     pub unsafe fn unchecked_insert_str(&mut self, idx: usize, string: &str) {
         assert!(self.is_char_boundary(idx));
         assert!(string.len() <= self.remaining_capacity());
@@ -489,6 +519,7 @@ impl<const N: usize> InplaceString<N> {
     /// s.insert_str(1, "CD");
     /// assert_eq!(s, "aCDb");
     /// ```
+    #[inline]
     pub fn insert_str(&mut self, idx: usize, string: &str) {
         let len = self.len();
         if idx > len {
@@ -521,6 +552,7 @@ impl<const N: usize> InplaceString<N> {
     /// s.insert(1, 'b');
     /// assert_eq!(s, "abc");
     /// ```
+    #[inline]
     pub fn insert(&mut self, idx: usize, ch: char) {
         let len = self.len();
         if idx > len {
@@ -553,6 +585,7 @@ impl<const N: usize> InplaceString<N> {
     /// s.extend_from_within(0..2);
     /// assert_eq!(s, "abcdab");
     /// ```
+    #[inline]
     pub fn extend_from_within<R>(&mut self, src: R)
     where
         R: RangeBounds<usize>,
@@ -613,6 +646,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s, "h");
     /// ```
     ///
+    #[inline]
     pub unsafe fn set_len(&mut self, new_len: usize) {
         debug_assert!(new_len <= N);
         self.size = NonZeroUsize::new_unchecked(new_len.add(1));
@@ -629,6 +663,8 @@ impl<const N: usize> InplaceString<N> {
     /// s.push_str("hi");
     /// assert_eq!(s.len(), 2);
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn len(&self) -> usize {
         unsafe { self.size.get().unchecked_sub(1) }
     }
@@ -645,6 +681,8 @@ impl<const N: usize> InplaceString<N> {
     /// s.push('a');
     /// assert!(!s.is_empty());
     /// ```
+    #[must_use]
+    #[inline]
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -660,6 +698,7 @@ impl<const N: usize> InplaceString<N> {
     /// s.clear();
     /// assert!(s.is_empty());
     /// ```
+    #[inline]
     pub fn clear(&mut self) {
         unsafe { self.set_len(0) };
     }
@@ -675,6 +714,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s.pop(), Some('i'));
     /// assert_eq!(s, "h");
     /// ```
+    #[inline]
     pub fn pop(&mut self) -> Option<char> {
         let ch = self.chars().next_back()?;
         let newlen = self.len() - ch.len_utf8();
@@ -701,6 +741,7 @@ impl<const N: usize> InplaceString<N> {
     /// s.truncate(2);
     /// assert_eq!(s, "ab");
     /// ```
+    #[inline]
     pub fn truncate(&mut self, new_len: usize) {
         if new_len < self.len() {
             if !self.is_char_boundary(new_len) {
@@ -728,6 +769,8 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s, "he");
     /// assert_eq!(tail, "llo");
     /// ```
+    #[must_use]
+    #[inline]
     pub fn split_off(&mut self, at: usize) -> Self {
         let len = self.len();
         if at > len {
@@ -744,6 +787,97 @@ impl<const N: usize> InplaceString<N> {
         }
 
         result
+    }
+
+    /// Replaces the specified range with the given string slice.
+    ///
+    /// Returns `Err(InplaceError)` if the replacement would exceed capacity.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the range is out of bounds or not on char boundaries.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inplace_containers::InplaceString;
+    ///
+    /// let mut s: InplaceString<8> = "abcd".try_into().unwrap();
+    /// s.try_replace_range(1..3, "XY").unwrap();
+    /// assert_eq!(s, "aXYd");
+    /// ```
+    #[inline]
+    pub fn try_replace_range<R>(&mut self, range: R, replace_with: &str) -> Result<(), InplaceError>
+    where
+        R: RangeBounds<usize>,
+    {
+        use std::ops::Bound::*;
+
+        let len = self.len();
+        let start = match range.start_bound() {
+            Included(&i) => i,
+            Excluded(&i) => i + 1,
+            Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Included(&i) => i + 1,
+            Excluded(&i) => i,
+            Unbounded => len,
+        };
+
+        if start > end || end > len {
+            panic!("replace_range out of bounds");
+        }
+        if !self.is_char_boundary(start) || !self.is_char_boundary(end) {
+            panic!("replace_range is not on char boundaries");
+        }
+
+        let repl_len = replace_with.len();
+        let new_len = len - (end - start) + repl_len;
+        if new_len > N {
+            return Err(InplaceError {
+                current_len: len,
+                capacity: N,
+                required_len: new_len,
+            });
+        }
+
+        let tail_len = len - end;
+        unsafe {
+            let base = self.data.as_mut_ptr();
+            if repl_len != end - start {
+                ptr::copy(base.add(end), base.add(start + repl_len), tail_len);
+            }
+            ptr::copy(replace_with.as_ptr(), base.add(start), repl_len);
+            self.set_len(new_len);
+        }
+
+        Ok(())
+    }
+
+    /// Replaces the specified range with the given string slice.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the range is out of bounds, not on char boundaries, or exceeds capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inplace_containers::InplaceString;
+    ///
+    /// let mut s: InplaceString<8> = "abcd".try_into().unwrap();
+    /// s.replace_range(1..3, "XY");
+    /// assert_eq!(s, "aXYd");
+    /// ```
+    #[inline]
+    pub fn replace_range<R>(&mut self, range: R, replace_with: &str)
+    where
+        R: RangeBounds<usize>,
+    {
+        if self.try_replace_range(range, replace_with).is_err() {
+            panic!("InplaceString replace_range should not exceed capacity");
+        }
     }
 
     /// Replaces the specified range with characters from the iterator.
@@ -764,6 +898,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(removed, "bc");
     /// assert_eq!(s, "aXYd");
     /// ```
+    #[inline]
     pub fn splice<R, I>(&mut self, range: R, replace_with: I) -> StringSplice<N>
     where
         R: RangeBounds<usize>,
@@ -841,6 +976,7 @@ impl<const N: usize> InplaceString<N> {
     /// let s: InplaceString<4> = InplaceString::from_utf8(bytes).unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     pub fn from_utf8(v: &[u8]) -> Result<Self, InplaceUtf8Error> {
         match str::from_utf8(v) {
             Ok(str) => Self::try_from(str).map_err(InplaceUtf8Error::InplaceError),
@@ -867,6 +1003,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s, "hi");
     /// ```
     ///
+    #[inline]
     pub unsafe fn from_utf8_unchecked(bytes: &[u8]) -> Result<Self, InplaceError> {
         if bytes.len() > N {
             return Err(InplaceError {
@@ -901,6 +1038,7 @@ impl<const N: usize> InplaceString<N> {
     /// let s: InplaceString<4> = InplaceString::from_utf8_lossy(bytes).unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     pub fn from_utf8_lossy(v: &[u8]) -> Result<Self, InplaceError> {
         let mut iter = v.utf8_chunks();
 
@@ -942,6 +1080,8 @@ impl<const N: usize> InplaceString<N> {
     /// let v = s.into_bytes();
     /// assert_eq!(v, &b"hi"[..]);
     /// ```
+    #[must_use]
+    #[inline]
     pub fn into_bytes(self) -> InplaceVector<u8, N> {
         let mut result = InplaceVector::new();
 
@@ -972,6 +1112,8 @@ impl<const N: usize> InplaceString<N> {
     /// }
     /// assert_eq!(s, "Hi");
     /// ```
+    #[must_use]
+    #[inline]
     pub unsafe fn as_mut_bytes(&mut self) -> &mut [u8] {
         let len = self.len();
         &mut self.data[..len]
@@ -992,6 +1134,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s.remove(1), 'b');
     /// assert_eq!(s, "ac");
     /// ```
+    #[inline]
     pub fn remove(&mut self, idx: usize) -> char {
         let len = self.len();
         if idx >= len {
@@ -1012,6 +1155,161 @@ impl<const N: usize> InplaceString<N> {
         ch
     }
 
+    /// Replaces the first match of a pattern with the given string.
+    ///
+    /// Returns `Ok(())` if a replacement occurred or no match was found,
+    /// or `Err(InplaceError)` if the replacement would exceed capacity.
+    ///
+    /// # Nightly
+    ///
+    /// This method requires the crate feature `nightly` (and nightly Rust).
+    #[cfg(feature = "nightly")]
+    #[inline]
+    pub fn try_replace_first<P>(&mut self, from: P, to: &str) -> Result<(), InplaceError>
+    where
+        P: Pattern,
+    {
+        let match_info = {
+            let haystack = self.as_str();
+            haystack
+                .match_indices(from)
+                .next()
+                .map(|(start, matched)| (start, matched.len()))
+        };
+
+        let (start, match_len) = match match_info {
+            Some(info) => info,
+            None => return Ok(()),
+        };
+
+        let end = start + match_len;
+        self.try_replace_range(start..end, to)
+    }
+
+    /// Replaces the first match of a pattern with the given string.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the replacement would exceed capacity.
+    ///
+    /// # Nightly
+    ///
+    /// This method requires the crate feature `nightly` (and nightly Rust).
+    #[cfg(feature = "nightly")]
+    #[inline]
+    pub fn replace_first<P>(&mut self, from: P, to: &str)
+    where
+        P: Pattern,
+    {
+        let match_info = {
+            let haystack = self.as_str();
+            haystack
+                .match_indices(from)
+                .next()
+                .map(|(start, matched)| (start, matched.len()))
+        };
+
+        if let Some((start, match_len)) = match_info {
+            let end = start + match_len;
+            self.replace_range(start..end, to);
+        }
+    }
+
+    /// Replaces the last match of a pattern with the given string.
+    ///
+    /// Returns `Ok(())` if a replacement occurred or no match was found,
+    /// or `Err(InplaceError)` if the replacement would exceed capacity.
+    ///
+    /// # Nightly
+    ///
+    /// This method requires the crate feature `nightly` (and nightly Rust).
+    #[cfg(feature = "nightly")]
+    #[inline]
+    pub fn try_replace_last<P>(&mut self, from: P, to: &str) -> Result<(), InplaceError>
+    where
+        P: Pattern,
+        for<'a> P::Searcher<'a>: core::str::pattern::ReverseSearcher<'a>,
+    {
+        let match_info = {
+            let haystack = self.as_str();
+            haystack
+                .rmatch_indices(from)
+                .next()
+                .map(|(start, matched)| (start, matched.len()))
+        };
+
+        let (start, match_len) = match match_info {
+            Some(info) => info,
+            None => return Ok(()),
+        };
+
+        let end = start + match_len;
+        self.try_replace_range(start..end, to)
+    }
+
+    /// Replaces the last match of a pattern with the given string.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the replacement would exceed capacity.
+    ///
+    /// # Nightly
+    ///
+    /// This method requires the crate feature `nightly` (and nightly Rust).
+    #[cfg(feature = "nightly")]
+    #[inline]
+    pub fn replace_last<P>(&mut self, from: P, to: &str)
+    where
+        P: Pattern,
+        for<'a> P::Searcher<'a>: core::str::pattern::ReverseSearcher<'a>,
+    {
+        let match_info = {
+            let haystack = self.as_str();
+            haystack
+                .rmatch_indices(from)
+                .next()
+                .map(|(start, matched)| (start, matched.len()))
+        };
+
+        if let Some((start, match_len)) = match_info {
+            let end = start + match_len;
+            self.replace_range(start..end, to);
+        }
+    }
+
+    /// Removes all matches of the pattern in-place.
+    ///
+    /// # Nightly
+    ///
+    /// This method requires the crate feature `nightly` (and nightly Rust).
+    #[cfg(feature = "nightly")]
+    #[inline]
+    pub fn remove_matches<P>(&mut self, pat: P)
+    where
+        P: Pattern,
+    {
+        let haystack = self.as_str();
+        let mut out = Self::new();
+        let mut last_end = 0;
+
+        for (start, matched) in haystack.match_indices(pat) {
+            if start > last_end {
+                unsafe {
+                    out.unchecked_push_str(&haystack[last_end..start]);
+                }
+            }
+            last_end = start + matched.len();
+        }
+
+        if last_end < haystack.len() {
+            unsafe {
+                out.unchecked_push_str(&haystack[last_end..]);
+            }
+        }
+
+        *self = out;
+    }
+
     /// Creates an iterator that removes characters matching a predicate.
     ///
     /// Characters for which the predicate returns `true` are removed and yielded.
@@ -1026,6 +1324,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(removed, "bd");
     /// assert_eq!(s, "ac");
     /// ```
+    #[inline]
     pub fn extract_if<F>(&mut self, predicate: F) -> StringExtractIf<'_, N, F>
     where
         F: FnMut(char) -> bool,
@@ -1053,6 +1352,7 @@ impl<const N: usize> InplaceString<N> {
     /// s.retain(|ch| ch != 'b');
     /// assert_eq!(s, "acd");
     /// ```
+    #[inline]
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(char) -> bool,
@@ -1089,6 +1389,7 @@ where
 impl<const N: usize> Iterator for StringSplice<N> {
     type Item = char;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.inner.len() {
             return None;
@@ -1106,6 +1407,7 @@ impl<'a, const N: usize, F> StringExtractIf<'a, N, F>
 where
     F: FnMut(char) -> bool,
 {
+    #[inline]
     fn finish(&mut self) {
         if self.finished {
             return;
@@ -1124,6 +1426,7 @@ where
 {
     type Item = char;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
             let base = (*self.string).as_mut_ptr();
@@ -1150,6 +1453,7 @@ where
         }
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         (0, None)
     }
@@ -1161,6 +1465,7 @@ impl<'a, const N: usize, F> Drop for StringExtractIf<'a, N, F>
 where
     F: FnMut(char) -> bool,
 {
+    #[inline]
     fn drop(&mut self) {
         if self.finished {
             return;
@@ -1203,6 +1508,7 @@ impl<const N: usize> Deref for InplaceString<N> {
     /// let s: InplaceString<8> = "hi".try_into().unwrap();
     /// assert_eq!(&*s, "hi");
     /// ```
+    #[inline]
     fn deref(&self) -> &Self::Target {
         self.as_str()
     }
@@ -1220,6 +1526,7 @@ impl<const N: usize> DerefMut for InplaceString<N> {
     /// s.make_ascii_uppercase();
     /// assert_eq!(s, "HI");
     /// ```
+    #[inline]
     fn deref_mut(&mut self) -> &mut str {
         self.as_mut_str()
     }
@@ -1242,6 +1549,7 @@ impl<const N: usize> TryFrom<&str> for InplaceString<N> {
     /// let s: InplaceString<4> = InplaceString::try_from("hi").unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let str_len = value.len();
         if N < str_len {
@@ -1276,6 +1584,7 @@ impl<const N: usize> TryFrom<&mut str> for InplaceString<N> {
     /// let inplace: InplaceString<4> = InplaceString::try_from(s.as_mut_str()).unwrap();
     /// assert_eq!(inplace, "hi");
     /// ```
+    #[inline]
     fn try_from(value: &mut str) -> Result<Self, Self::Error> {
         (value as &str).try_into()
     }
@@ -1299,6 +1608,7 @@ impl<const N: usize> TryFrom<String> for InplaceString<N> {
     /// let inplace: InplaceString<4> = InplaceString::try_from(s).unwrap();
     /// assert_eq!(inplace, "hi");
     /// ```
+    #[inline]
     fn try_from(value: String) -> Result<Self, Self::Error> {
         value.as_str().try_into()
     }
@@ -1321,6 +1631,7 @@ impl<const N: usize> TryFrom<char> for InplaceString<N> {
     /// let s: InplaceString<2> = InplaceString::try_from('a').unwrap();
     /// assert_eq!(s, "a");
     /// ```
+    #[inline]
     fn try_from(value: char) -> Result<Self, Self::Error> {
         let ch_len = value.len_utf8();
         if N < ch_len {
@@ -1357,6 +1668,7 @@ impl<const N: usize> TryFrom<InplaceVector<u8, N>> for InplaceString<N> {
     /// let s: InplaceString<4> = InplaceString::try_from(v).unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     fn try_from(value: InplaceVector<u8, N>) -> Result<Self, Self::Error> {
         let str = std::str::from_utf8(&value)?;
 
@@ -1390,6 +1702,7 @@ impl<const N: usize> TryFrom<&std::ffi::CStr> for InplaceString<N> {
     /// let s: InplaceString<4> = InplaceString::try_from(cstr).unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     fn try_from(value: &std::ffi::CStr) -> Result<Self, Self::Error> {
         value.to_bytes().try_into()
     }
@@ -1414,6 +1727,7 @@ impl<const N: usize> TryFrom<std::ffi::CString> for InplaceString<N> {
     /// let s: InplaceString<4> = InplaceString::try_from(cstr).unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     fn try_from(value: std::ffi::CString) -> Result<Self, Self::Error> {
         value.as_c_str().try_into()
     }
@@ -1435,6 +1749,7 @@ impl<'a, const N: usize> FromIterator<&'a char> for InplaceString<N> {
     /// let s: InplaceString<4> = chars.iter().collect();
     /// assert_eq!(s, "ab");
     /// ```
+    #[inline]
     fn from_iter<T: IntoIterator<Item = &'a char>>(iter: T) -> Self {
         let mut result = Self::new();
         for ch in iter {
@@ -1459,6 +1774,7 @@ impl<const N: usize> FromIterator<char> for InplaceString<N> {
     /// let s: InplaceString<4> = ['a', 'b'].into_iter().collect();
     /// assert_eq!(s, "ab");
     /// ```
+    #[inline]
     fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
         let mut result = Self::new();
         for ch in iter {
@@ -1484,6 +1800,7 @@ impl<'a, const N: usize> FromIterator<&'a str> for InplaceString<N> {
     /// let s: InplaceString<8> = parts.into_iter().collect();
     /// assert_eq!(s, "hello");
     /// ```
+    #[inline]
     fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
         let mut result = Self::new();
         for s in iter {
@@ -1511,6 +1828,7 @@ impl<const N: usize> FromStr for InplaceString<N> {
     /// let s = InplaceString::<4>::from_str("hi").unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::try_from(s)
     }
@@ -1528,6 +1846,7 @@ impl<const N: usize> From<InplaceString<N>> for String {
     /// let std = String::from(s);
     /// assert_eq!(std, "hi");
     /// ```
+    #[inline]
     fn from(value: InplaceString<N>) -> Self {
         Self::from(value.as_str())
     }
@@ -1547,6 +1866,7 @@ impl<const N: usize> Hash for InplaceString<N> {
     /// let mut hasher = DefaultHasher::new();
     /// s.hash(&mut hasher);
     /// ```
+    #[inline]
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state);
     }
@@ -1564,6 +1884,7 @@ impl<const N: usize> PartialOrd for InplaceString<N> {
     /// let b: InplaceString<4> = "b".try_into().unwrap();
     /// assert!(a < b);
     /// ```
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
@@ -1581,6 +1902,7 @@ impl<const N: usize> Ord for InplaceString<N> {
     /// let b: InplaceString<4> = "b".try_into().unwrap();
     /// assert!(a.cmp(&b).is_lt());
     /// ```
+    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_str().cmp(other)
     }
@@ -1603,6 +1925,7 @@ impl<const N: usize> Write for InplaceString<N> {
     /// write!(&mut s, "hi").unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         self.try_push_str(s).map_err(|_| std::fmt::Error)?;
         Ok(())
@@ -1629,6 +1952,7 @@ where
     /// let s: InplaceString<8> = "hello".try_into().unwrap();
     /// assert_eq!(&s[1..3], "el");
     /// ```
+    #[inline]
     fn index(&self, index: I) -> &Self::Output {
         self.as_str().index(index)
     }
@@ -1653,6 +1977,7 @@ where
     /// s[0..1].make_ascii_uppercase();
     /// assert_eq!(s, "Hello");
     /// ```
+    #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         self.as_mut_str().index_mut(index)
     }
@@ -1675,6 +2000,7 @@ impl<const N: usize> TryFrom<&[u8]> for InplaceString<N> {
     /// let s: InplaceString<4> = InplaceString::try_from(&b"hi"[..]).unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Self::from_utf8(value)
     }
@@ -1692,6 +2018,7 @@ impl<const N: usize> AsRef<[u8]> for InplaceString<N> {
     /// let bytes: &[u8] = s.as_ref();
     /// assert_eq!(bytes, b"hi");
     /// ```
+    #[inline]
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
     }
@@ -1709,6 +2036,7 @@ impl<const N: usize> AsRef<str> for InplaceString<N> {
     /// let view: &str = s.as_ref();
     /// assert_eq!(view, "hi");
     /// ```
+    #[inline]
     fn as_ref(&self) -> &str {
         self.as_str()
     }
@@ -1727,6 +2055,7 @@ impl<const N: usize> std::borrow::Borrow<str> for InplaceString<N> {
     /// let view: &str = s.borrow();
     /// assert_eq!(view, "hi");
     /// ```
+    #[inline]
     fn borrow(&self) -> &str {
         self
     }
@@ -1746,6 +2075,7 @@ impl<const N: usize> std::borrow::BorrowMut<str> for InplaceString<N> {
     /// view.make_ascii_uppercase();
     /// assert_eq!(s, "HI");
     /// ```
+    #[inline]
     fn borrow_mut(&mut self) -> &mut str {
         self.as_mut_str()
     }
@@ -1762,6 +2092,7 @@ impl<const N: usize> Default for InplaceString<N> {
     /// let s: InplaceString<4> = InplaceString::default();
     /// assert!(s.is_empty());
     /// ```
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -1794,6 +2125,7 @@ impl<const N: usize> Add<&str> for InplaceString<N> {
     /// let s = s + "yo";
     /// assert_eq!(s, "hiyo");
     /// ```
+    #[inline]
     fn add(mut self, rhs: &str) -> Self::Output {
         self.push_str(rhs);
         self
@@ -1816,6 +2148,7 @@ impl<const N: usize> AddAssign<&str> for InplaceString<N> {
     /// s += "yo";
     /// assert_eq!(s, "hiyo");
     /// ```
+    #[inline]
     fn add_assign(&mut self, rhs: &str) {
         self.push_str(rhs);
     }
@@ -1834,6 +2167,7 @@ impl<const N: usize> AsMut<str> for InplaceString<N> {
     /// view.make_ascii_uppercase();
     /// assert_eq!(s, "HI");
     /// ```
+    #[inline]
     fn as_mut(&mut self) -> &mut str {
         self.as_mut_str()
     }
@@ -1851,6 +2185,7 @@ impl<const N: usize> Debug for InplaceString<N> {
     /// let out = format!("{:?}", s);
     /// assert!(out.contains("hi"));
     /// ```
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(concat!("InplaceString<", stringify!(N), ">"))
             .field("string", &self.as_str())
@@ -1870,6 +2205,7 @@ impl<const N: usize> std::fmt::Display for InplaceString<N> {
     /// let s: InplaceString<4> = "hi".try_into().unwrap();
     /// assert_eq!(format!("{}", s), "hi");
     /// ```
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt::Display::fmt(&**self, f)
     }
@@ -1887,6 +2223,7 @@ impl<const N: usize> PartialEq for InplaceString<N> {
     /// let b: InplaceString<4> = "hi".try_into().unwrap();
     /// assert_eq!(a, b);
     /// ```
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.as_str() == other.as_str()
     }
@@ -1903,6 +2240,7 @@ impl<const N: usize> PartialEq<InplaceString<N>> for &str {
     /// let s: InplaceString<4> = "hi".try_into().unwrap();
     /// assert_eq!("hi", s);
     /// ```
+    #[inline]
     fn eq(&self, other: &InplaceString<N>) -> bool {
         *self == other.as_str()
     }
@@ -1919,6 +2257,7 @@ impl<const N: usize> PartialEq<&str> for InplaceString<N> {
     /// let s: InplaceString<4> = "hi".try_into().unwrap();
     /// assert_eq!(s, "hi");
     /// ```
+    #[inline]
     fn eq(&self, other: &&str) -> bool {
         self.as_str() == *other
     }
@@ -1940,6 +2279,7 @@ impl<const N: usize> Extend<char> for InplaceString<N> {
     /// s.extend(['a', 'b']);
     /// assert_eq!(s, "ab");
     /// ```
+    #[inline]
     fn extend<T: IntoIterator<Item = char>>(&mut self, iter: T) {
         for ch in iter {
             self.push(ch);
@@ -1963,6 +2303,7 @@ impl<'a, const N: usize> Extend<&'a str> for InplaceString<N> {
     /// s.extend(["he", "llo"]);
     /// assert_eq!(s, "hello");
     /// ```
+    #[inline]
     fn extend<T: IntoIterator<Item = &'a str>>(&mut self, iter: T) {
         for string in iter {
             self.push_str(string);
@@ -1986,6 +2327,7 @@ impl<const N: usize> Extend<String> for InplaceString<N> {
     /// s.extend([String::from("he"), String::from("llo")]);
     /// assert_eq!(s, "hello");
     /// ```
+    #[inline]
     fn extend<T: IntoIterator<Item = String>>(&mut self, iter: T) {
         for string in iter {
             self.push_str(string.as_str());
@@ -2010,6 +2352,7 @@ pub trait BoundedDisplay: core::fmt::Display {
     /// let s = 42u32.to_inplace_string();
     /// assert_eq!(s, "42");
     /// ```
+    #[inline]
     fn to_inplace_string(&self) -> InplaceString<20> {
         let mut result = InplaceString::<20>::new();
         use core::fmt::Write;
@@ -2043,10 +2386,12 @@ impl BoundedDisplay for char {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::inplace_string;
 
     const CAP: usize = 16;
 
     #[test]
+    #[inline]
     fn test_u8_bounded_display() {
         let value: u8 = 255;
         let s = value.to_inplace_string();
@@ -2055,6 +2400,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_i8_bounded_display() {
         let value: i8 = -128;
         let s = value.to_inplace_string();
@@ -2063,6 +2409,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_u32_bounded_display() {
         let value: u32 = 4_294_967_295;
         let s = value.to_inplace_string();
@@ -2071,6 +2418,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_i32_bounded_display() {
         let value: i32 = -2_147_483_648;
         let s = value.to_inplace_string();
@@ -2079,6 +2427,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_u64_bounded_display() {
         let value: u64 = 18_446_744_073_709_551_615;
         let s = value.to_inplace_string();
@@ -2087,6 +2436,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_i64_bounded_display() {
         let value: i64 = -9_223_372_036_854_775_808;
         let s = value.to_inplace_string();
@@ -2095,6 +2445,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_usize_bounded_display() {
         let value: usize = 123456789;
         let s = value.to_inplace_string();
@@ -2103,6 +2454,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_bool_bounded_display() {
         let t = true.to_inplace_string();
         let f = false.to_inplace_string();
@@ -2113,6 +2465,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_char_bounded_display() {
         let ch = 'β';
         let s = ch.to_inplace_string();
@@ -2121,8 +2474,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_new_and_basic_properties() {
-        let s: InplaceString<CAP> = InplaceString::new();
+        let s = inplace_string![CAP;];
         assert_eq!(s.len(), 0);
         assert!(s.is_empty());
         assert_eq!(s.capacity(), CAP);
@@ -2131,37 +2485,40 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_push_and_try_push() {
-        let mut s: InplaceString<CAP> = InplaceString::new();
+        let mut s = inplace_string![CAP;];
         s.push('a');
         assert_eq!(s, "a");
 
         s.try_push('β').unwrap();
         assert_eq!(s, "aβ");
 
-        let mut s: InplaceString<1> = InplaceString::new();
+        let mut s = inplace_string![1;];
         let err = s.try_push('β').unwrap_err();
         assert_eq!(err.current_len, 0);
         assert_eq!(err.required_len, 2);
     }
 
     #[test]
+    #[inline]
     fn test_push_str_and_try_push_str() {
-        let mut s: InplaceString<CAP> = InplaceString::new();
+        let mut s = inplace_string![CAP;];
         s.push_str("hello");
         assert_eq!(s, "hello");
 
         s.try_push_str(" world").unwrap();
         assert_eq!(s, "hello world");
 
-        let mut s: InplaceString<5> = InplaceString::new();
+        let mut s = inplace_string![5;];
         let err = s.try_push_str("toolong").unwrap_err();
         assert_eq!(err.required_len, 7);
     }
 
     #[test]
+    #[inline]
     fn test_insert_and_insert_str() {
-        let mut s: InplaceString<CAP> = InplaceString::new();
+        let mut s = inplace_string![CAP;];
         s.push_str("ac");
         s.insert(1, 'b');
         assert_eq!(s, "abc");
@@ -2171,6 +2528,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_splice_and_extract_if() {
         let mut s: InplaceString<CAP> = "abcd".try_into().unwrap();
         let removed: String = s.splice(1..3, ['X', 'Y']).collect();
@@ -2182,6 +2540,7 @@ mod tests {
         assert_eq!(s, "aYd");
     }
     #[test]
+    #[inline]
     fn test_truncate_and_split_off() {
         let mut s: InplaceString<CAP> = "abcd".try_into().unwrap();
         s.truncate(2);
@@ -2193,20 +2552,23 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[inline]
     fn test_truncate_non_boundary_panics() {
         let mut s: InplaceString<CAP> = "aIı".try_into().unwrap();
         s.truncate(3);
     }
     #[test]
     #[should_panic]
+    #[inline]
     fn test_splice_capacity_error() {
         let mut s: InplaceString<4> = "ab".try_into().unwrap();
         s.splice(0..0, ['x', 'y', 'z']);
     }
 
     #[test]
+    #[inline]
     fn test_unchecked_push_and_insert() {
-        let mut s: InplaceString<CAP> = InplaceString::new();
+        let mut s = inplace_string![CAP;];
         unsafe {
             s.unchecked_push('β');
             s.unchecked_push('γ');
@@ -2216,8 +2578,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_pop_and_remove() {
-        let mut s: InplaceString<CAP> = InplaceString::new();
+        let mut s = inplace_string![CAP;];
         s.push_str("aβγ");
         let ch = s.pop().unwrap();
         assert_eq!(ch, 'γ');
@@ -2227,9 +2590,208 @@ mod tests {
         assert_eq!(removed, 'β');
         assert_eq!(s, "a");
     }
+
+    #[cfg(feature = "nightly")]
     #[test]
+    #[inline]
+    fn test_remove_matches_str() {
+        let mut s: InplaceString<64> = "Trees are not green, the sky is not blue."
+            .try_into()
+            .unwrap();
+        s.remove_matches("not ");
+        assert_eq!(s, "Trees are green, the sky is blue.");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_remove_matches_overlapping() {
+        let mut s: InplaceString<CAP> = "banana".try_into().unwrap();
+        s.remove_matches("ana");
+        assert_eq!(s, "bna");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_remove_matches_char() {
+        let mut s: InplaceString<CAP> = "xaxbx".try_into().unwrap();
+        s.remove_matches('x');
+        assert_eq!(s, "ab");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_remove_matches_closure() {
+        let mut s: InplaceString<CAP> = "a1b2c3".try_into().unwrap();
+        s.remove_matches(|ch: char| ch.is_ascii_digit());
+        assert_eq!(s, "abc");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_try_replace_first_str() {
+        let mut s: InplaceString<CAP> = "abcabc".try_into().unwrap();
+        s.try_replace_first("ab", "xy").unwrap();
+        assert_eq!(s, "xycabc");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_try_replace_first_not_found() {
+        let mut s: InplaceString<CAP> = "abc".try_into().unwrap();
+        s.try_replace_first("zz", "x").unwrap();
+        assert_eq!(s, "abc");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_try_replace_first_capacity_error() {
+        let mut s: InplaceString<4> = "ab".try_into().unwrap();
+        let err = s.try_replace_first("a", "long").unwrap_err();
+        assert_eq!(err.current_len, 2);
+        assert_eq!(err.capacity, 4);
+        assert_eq!(err.required_len, 5);
+        assert_eq!(s, "ab");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_replace_first_basic() {
+        let mut s: InplaceString<CAP> = "abcabc".try_into().unwrap();
+        s.replace_first("bc", "ZZ");
+        assert_eq!(s, "aZZabc");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_replace_first_not_found() {
+        let mut s: InplaceString<CAP> = "abc".try_into().unwrap();
+        s.replace_first("zz", "x");
+        assert_eq!(s, "abc");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[should_panic(expected = "InplaceString replace_range should not exceed capacity")]
+    #[inline]
+    fn test_replace_first_panics_on_overflow() {
+        let mut s: InplaceString<4> = "ab".try_into().unwrap();
+        s.replace_first("a", "long");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_try_replace_last_str() {
+        let mut s: InplaceString<CAP> = "abcabc".try_into().unwrap();
+        s.try_replace_last("ab", "xy").unwrap();
+        assert_eq!(s, "abcxyc");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_try_replace_last_not_found() {
+        let mut s: InplaceString<CAP> = "abc".try_into().unwrap();
+        s.try_replace_last("zz", "x").unwrap();
+        assert_eq!(s, "abc");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_try_replace_last_capacity_error() {
+        let mut s: InplaceString<4> = "ab".try_into().unwrap();
+        let err = s.try_replace_last("b", "long").unwrap_err();
+        assert_eq!(err.current_len, 2);
+        assert_eq!(err.capacity, 4);
+        assert_eq!(err.required_len, 5);
+        assert_eq!(s, "ab");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_replace_last_basic() {
+        let mut s: InplaceString<CAP> = "abcabc".try_into().unwrap();
+        s.replace_last("bc", "ZZ");
+        assert_eq!(s, "abcaZZ");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[inline]
+    fn test_replace_last_not_found() {
+        let mut s: InplaceString<CAP> = "abc".try_into().unwrap();
+        s.replace_last("zz", "x");
+        assert_eq!(s, "abc");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    #[should_panic(expected = "InplaceString replace_range should not exceed capacity")]
+    #[inline]
+    fn test_replace_last_panics_on_overflow() {
+        let mut s: InplaceString<4> = "ab".try_into().unwrap();
+        s.replace_last("b", "long");
+    }
+
+    #[test]
+    #[inline]
+    fn test_replace_range_basic() {
+        let mut s: InplaceString<CAP> = "abcd".try_into().unwrap();
+        s.replace_range(1..3, "XY");
+        assert_eq!(s, "aXYd");
+    }
+
+    #[test]
+    #[inline]
+    fn test_try_replace_range_basic() {
+        let mut s: InplaceString<CAP> = "abcd".try_into().unwrap();
+        s.try_replace_range(0..2, "Z").unwrap();
+        assert_eq!(s, "Zcd");
+    }
+
+    #[test]
+    #[inline]
+    fn test_try_replace_range_overflow() {
+        let mut s: InplaceString<4> = "ab".try_into().unwrap();
+        let err = s.try_replace_range(0..1, "long").unwrap_err();
+        assert_eq!(err.current_len, 2);
+        assert_eq!(err.capacity, 4);
+        assert_eq!(err.required_len, 5);
+        assert_eq!(s, "ab");
+    }
+
+    #[test]
+    #[inline]
+    fn test_replace_range_expand_and_shrink() {
+        let mut s: InplaceString<CAP> = "abcd".try_into().unwrap();
+        s.replace_range(1..2, "XYZ");
+        assert_eq!(s, "aXYZcd");
+        s.replace_range(2..5, "");
+        assert_eq!(s, "aXd");
+    }
+
+    #[test]
+    #[should_panic(expected = "InplaceString replace_range should not exceed capacity")]
+    #[inline]
+    fn test_replace_range_panics_on_overflow() {
+        let mut s: InplaceString<4> = "ab".try_into().unwrap();
+        s.replace_range(0..1, "long");
+    }
+
+    #[test]
+    #[inline]
     fn test_clear_and_is_empty() {
-        let mut s: InplaceString<CAP> = InplaceString::new();
+        let mut s = inplace_string![CAP;];
         s.push_str("test");
         assert!(!s.is_empty());
         s.clear();
@@ -2238,6 +2800,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_from_utf8() {
         let bytes = "hello β".as_bytes();
         let s: InplaceString<CAP> = InplaceString::from_utf8(bytes).unwrap();
@@ -2252,6 +2815,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_from_utf8_unchecked() {
         let bytes = "αβγ".as_bytes();
         let s = unsafe { InplaceString::<CAP>::from_utf8_unchecked(bytes).unwrap() };
@@ -2259,6 +2823,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_try_from_various() {
         let s: InplaceString<CAP> = "hello".try_into().unwrap();
         assert_eq!(s, "hello");
@@ -2272,6 +2837,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_into_bytes() {
         let s: InplaceString<CAP> = "hello β".try_into().unwrap();
         let v = s.into_bytes();
@@ -2279,8 +2845,9 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_extend() {
-        let mut s: InplaceString<CAP> = InplaceString::new();
+        let mut s = inplace_string![CAP;];
         s.extend(['a', 'β', 'γ']);
         assert_eq!(s, "aβγ");
 
@@ -2289,6 +2856,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_deref_and_index() {
         let s: InplaceString<CAP> = "hello".try_into().unwrap();
         assert_eq!(&*s, "hello");
@@ -2296,6 +2864,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_debug_display_hash() {
         let s: InplaceString<CAP> = "hash_test".try_into().unwrap();
         let debug = format!("{:?}", s);
@@ -2309,6 +2878,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_partial_eq_and_ord() {
         let s1: InplaceString<CAP> = "abc".try_into().unwrap();
         let s2: InplaceString<CAP> = "abc".try_into().unwrap();
@@ -2325,6 +2895,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_add_and_add_assign() {
         let s1: InplaceString<CAP> = "foo".try_into().unwrap();
         dbg!(s1);
@@ -2338,6 +2909,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_transmute() {
         let mut s = InplaceString::<CAP>::from_str("hello").unwrap();
 
@@ -2351,6 +2923,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn test_extend_from_within() {
         let mut string: InplaceString<CAP> = "abcde".try_into().unwrap();
 
@@ -2366,6 +2939,7 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[inline]
     fn test_extend_from_within_out_of_bounds() {
         let mut s: InplaceString<CAP> = "abc".try_into().unwrap();
         s.extend_from_within(0..10); // panic: end out of bounds
@@ -2373,8 +2947,9 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[inline]
     fn test_unchecked_push_overflow() {
-        let mut s: InplaceString<1> = InplaceString::new();
+        let mut s = inplace_string![1;];
         s.push('β'); // would exceed capacity
     }
 }

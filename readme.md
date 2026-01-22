@@ -15,6 +15,22 @@
 - Clone, Debug, PartialEq, Hash, Ord, and conversions implemented.
 - UTF-8 correctness for `InplaceString`.
 - Compile-time capacity checks with `inplace_vec!` macro.
+- Optional `nightly` feature enables unstable Pattern-gated APIs (requires nightly Rust).
+
+---
+
+## Nightly
+
+To enable unstable Pattern-gated APIs, build with nightly and the `nightly` feature:
+
+```toml
+[dependencies]
+inplace_containers = { version = "0.3.1", features = ["nightly"] }
+```
+
+```sh
+cargo +nightly build
+```
 
 ---
 
@@ -107,6 +123,9 @@ assert_eq!(s.as_str(), "hello rust");
 
 ### Macros
 
+- `inplace_string![CAP; "literal"]` - creates an `InplaceString` with explicit capacity.
+- `inplace_string![CAP;]` - creates an empty `InplaceString` with explicit capacity.
+
 - `inplace_vec![...]` – stack-allocated vector creation with optional compile-time capacity checking.
 - `inplace_string!("...")` – creates an `InplaceString` from a literal.
 
@@ -115,6 +134,8 @@ use inplace_containers::{inplace_vec, inplace_string};
 
 let vec = inplace_vec![4; 1, 2, 3];
 let s = inplace_string!("hello");
+let s2 = inplace_string![10; "hello"];
+let s3 = inplace_string![10;];
 ```
 
 ---

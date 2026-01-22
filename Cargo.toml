@@ -1,6 +1,6 @@
 [package]
 name = "inplace_containers"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 description = "In-place, fixed-capacity containers with optional features"
 license = "MIT OR Apache-2.0"
@@ -16,3 +16,4 @@ all = ["inplace_vector", "inplace_string"]
 
 inplace_vector = []
 inplace_string = []
+nightly = []
