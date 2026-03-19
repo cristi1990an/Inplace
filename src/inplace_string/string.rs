@@ -789,6 +789,67 @@ impl<const N: usize> InplaceString<N> {
         result
     }
 
+    /// Removes the specified range and returns it as an iterator over chars.
+    ///
+    /// The characters are removed even if the iterator is not fully consumed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the range is out of bounds or not on char boundaries.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inplace_containers::InplaceString;
+    ///
+    /// let mut s: InplaceString<8> = "aβγd".try_into().unwrap();
+    /// let drained: String = s.drain(1.."aβγ".len()).collect();
+    /// assert_eq!(drained, "βγ");
+    /// assert_eq!(s, "ad");
+    /// ```
+    #[inline]
+    pub fn drain<R>(&mut self, range: R) -> StringDrain<'_, N>
+    where
+        R: RangeBounds<usize>,
+    {
+        use std::ops::Bound::*;
+
+        let len = self.len();
+        let start = match range.start_bound() {
+            Included(&i) => i,
+            Excluded(&i) => i + 1,
+            Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Included(&i) => i + 1,
+            Excluded(&i) => i,
+            Unbounded => len,
+        };
+
+        if start > end || end > len {
+            panic!("drain range out of bounds");
+        }
+        if !self.is_char_boundary(start) || !self.is_char_boundary(end) {
+            panic!("drain range is not on char boundaries");
+        }
+
+        let tail_len = len - end;
+
+        unsafe {
+            self.set_len(start);
+        }
+
+        StringDrain {
+            string: self as *mut InplaceString<N>,
+            start,
+            cur: start,
+            end,
+            tail_start: end,
+            tail_len,
+            _marker: PhantomData,
+        }
+    }
+
     /// Replaces the specified range with the given string slice.
     ///
     /// Returns `Err(InplaceError)` if the replacement would exceed capacity.
@@ -1372,6 +1433,17 @@ pub struct StringSplice<const N: usize> {
     index: usize,
 }
 
+/// Iterator returned by `InplaceString::drain`.
+pub struct StringDrain<'a, const N: usize> {
+    string: *mut InplaceString<N>,
+    start: usize,
+    cur: usize,
+    end: usize,
+    tail_start: usize,
+    tail_len: usize,
+    _marker: PhantomData<&'a mut InplaceString<N>>,
+}
+
 /// Iterator returned by `InplaceString::extract_if`.
 pub struct StringExtractIf<'a, const N: usize, F>
 where
@@ -1402,6 +1474,85 @@ impl<const N: usize> Iterator for StringSplice<N> {
 }
 
 impl<const N: usize> FusedIterator for StringSplice<N> {}
+
+impl<'a, const N: usize> StringDrain<'a, N> {
+    #[inline]
+    fn len_bytes(&self) -> usize {
+        self.end - self.cur
+    }
+}
+
+impl<'a, const N: usize> Iterator for StringDrain<'a, N> {
+    type Item = char;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.len_bytes() == 0 {
+            return None;
+        }
+
+        unsafe {
+            let base = (*self.string).as_ptr();
+            let bytes = std::slice::from_raw_parts(base.add(self.cur), self.end - self.cur);
+            let s = std::str::from_utf8_unchecked(bytes);
+            let ch = s.chars().next().expect("valid UTF-8");
+            self.cur += ch.len_utf8();
+            Some(ch)
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.len_bytes()))
+    }
+}
+
+impl<'a, const N: usize> DoubleEndedIterator for StringDrain<'a, N> {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.len_bytes() == 0 {
+            return None;
+        }
+
+        unsafe {
+            let bytes = &(&(*self.string).data)[..self.end];
+            let mut start = self.end - 1;
+            while start > self.cur && (bytes[start] & 0b1100_0000) == 0b1000_0000 {
+                start -= 1;
+            }
+
+            let slice =
+                std::slice::from_raw_parts((*self.string).data.as_ptr().add(start), self.end - start);
+            let s = std::str::from_utf8_unchecked(slice);
+            let ch = s.chars().next().expect("valid UTF-8");
+            self.end = start;
+            Some(ch)
+        }
+    }
+}
+
+impl<'a, const N: usize> FusedIterator for StringDrain<'a, N> {}
+
+impl<'a, const N: usize> Drop for StringDrain<'a, N> {
+    #[inline]
+    fn drop(&mut self) {
+        unsafe {
+            if self.tail_len > 0 {
+                let base = (*self.string).as_mut_ptr();
+                if self.start != self.tail_start {
+                    ptr::copy(
+                        base.add(self.tail_start),
+                        base.add(self.start),
+                        self.tail_len,
+                    );
+                }
+            }
+
+            let string = &mut *self.string;
+            string.set_len(self.start + self.tail_len);
+        }
+    }
+}
 
 impl<'a, const N: usize, F> StringExtractIf<'a, N, F>
 where
@@ -2549,6 +2700,54 @@ mod tests {
         assert_eq!(removed2, "X");
         assert_eq!(s, "aYd");
     }
+
+    #[test]
+    #[inline]
+    fn test_drain_removes_correct_range() {
+        let mut s: InplaceString<CAP> = "aβγd".try_into().unwrap();
+        let drained: String = s.drain(1.."aβγ".len()).collect();
+        assert_eq!(drained, "βγ");
+        assert_eq!(s, "ad");
+    }
+
+    #[test]
+    #[inline]
+    fn test_drain_double_ended_and_partial_drop() {
+        let mut s: InplaceString<CAP> = "aβγd".try_into().unwrap();
+        let mut drained = s.drain(1.."aβγ".len());
+        assert_eq!(drained.next_back(), Some('γ'));
+        assert_eq!(drained.next(), Some('β'));
+        assert_eq!(drained.next(), None);
+        drop(drained);
+        assert_eq!(s, "ad");
+    }
+
+    #[test]
+    #[inline]
+    fn test_drain_drop_without_full_consumption() {
+        let mut s: InplaceString<CAP> = "abcde".try_into().unwrap();
+        let mut drained = s.drain(1..4);
+        assert_eq!(drained.next(), Some('b'));
+        drop(drained);
+        assert_eq!(s, "ae");
+    }
+
+    #[test]
+    #[should_panic(expected = "drain range out of bounds")]
+    #[inline]
+    fn test_drain_out_of_bounds_panics() {
+        let mut s: InplaceString<CAP> = "abc".try_into().unwrap();
+        s.drain(0..10);
+    }
+
+    #[test]
+    #[should_panic(expected = "drain range is not on char boundaries")]
+    #[inline]
+    fn test_drain_non_boundary_panics() {
+        let mut s: InplaceString<CAP> = "aβc".try_into().unwrap();
+        s.drain(2..3);
+    }
+
     #[test]
     #[inline]
     fn test_truncate_and_split_off() {

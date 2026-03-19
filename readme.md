@@ -114,6 +114,7 @@ assert_eq!(s.as_str(), "hello rust");
 | `insert` | `fn insert(&mut self, idx: usize, ch: char)` | Inserts char at index |
 | `insert_str` | `fn insert_str(&mut self, idx: usize, s: &str)` | Inserts string at index |
 | `remove` | `fn remove(&mut self, idx: usize) -> char` | Removes char at index |
+| `drain` | `fn drain<R>(&mut self, range: R) -> StringDrain<'_, N>` | Removes a byte range on char boundaries and yields the removed chars |
 | `pop` | `fn pop(&mut self) -> Option<char>` | Removes last char |
 | `clear` | `fn clear(&mut self)` | Clears the string |
 | `truncate` | `fn truncate(&mut self, new_len: usize)` | Shortens string to new_len |
