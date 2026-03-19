@@ -44,9 +44,8 @@ A fixed-capacity vector that stores `N` elements of type `T` inline.
 ```rust
 use inplace_containers::inplace_vec;
 
-// Start with an empty vector with capacity for five elements.
+// The macro encodes the fixed capacity in the type without heap allocation.
 let mut vec = inplace_vec![5;];
-// Fill it using the familiar Vec-like mutation APIs.
 vec.push(1);
 vec.push(2);
 vec.extend_from_slice(&[3, 4, 5]);
@@ -54,7 +53,6 @@ vec.extend_from_slice(&[3, 4, 5]);
 assert_eq!(vec.len(), 5);
 assert!(vec.is_full());
 
-// Removing from the end returns the last value.
 let last = vec.pop();
 assert_eq!(last, Some(5));
 ```
@@ -90,9 +88,8 @@ A fixed-capacity, stack-allocated string type.
 ```rust
 use inplace_containers::inplace_string;
 
-// Start with an empty string with room for ten UTF-8 bytes.
+// The macro creates an empty inline string with room for ten UTF-8 bytes.
 let mut s = inplace_string![10;];
-// Build the contents incrementally.
 s.push_str("hello");
 s.push(' ');
 s.push_str("rust");
@@ -138,13 +135,13 @@ assert_eq!(s.as_str(), "hello rust");
 ```rust
 use inplace_containers::{inplace_vec, inplace_string};
 
-// Explicit capacity with initial elements.
+// Explicit compile-time capacity, with fewer initial elements than slots.
 let vec = inplace_vec![4; 1, 2, 3];
-// Capacity inferred from the literal length.
+// Capacity inferred directly from the literal length.
 let s = inplace_string!("hello");
-// Explicit capacity with initial contents.
+// Explicit capacity when the inline buffer should be larger than the literal.
 let s2 = inplace_string![10; "hello"];
-// Explicit capacity, empty initial value.
+// Empty string with capacity chosen up front.
 let s3 = inplace_string![10;];
 ```
 
