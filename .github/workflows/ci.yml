@@ -33,23 +33,32 @@ jobs:
         run: cargo fmt --all -- --check
 
   clippy:
-    name: Clippy
+    name: Clippy (${{ matrix.toolchain }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - toolchain: stable
+            args: --no-default-features --features all --all-targets -- -D warnings
+          - toolchain: nightly
+            args: --all-features --all-targets -- -D warnings
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install stable toolchain
+      - name: Install ${{ matrix.toolchain }} toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ matrix.toolchain }}
           components: clippy
 
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
       - name: Run clippy
-        run: cargo clippy --all-features --all-targets -- -D warnings
+        run: cargo clippy ${{ matrix.args }}
 
   test:
     name: Test (${{ matrix.toolchain }})
@@ -57,16 +66,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain:
-          - stable
-          - nightly
+        include:
+          - toolchain: stable
+            args: --no-default-features --features all
+          - toolchain: nightly
+            args: --all-features
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install ${{ matrix.toolchain }} toolchain
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.toolchain }}
 
@@ -74,7 +85,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run tests
-        run: cargo test --all-features
+        run: cargo test ${{ matrix.args }}
 
   miri:
     name: Miri
