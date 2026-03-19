@@ -49,7 +49,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install ${{ matrix.toolchain }} toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
@@ -61,15 +61,29 @@ jobs:
         run: cargo clippy ${{ matrix.args }}
 
   test:
-    name: Test (${{ matrix.toolchain }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }}, ${{ matrix.toolchain }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - toolchain: stable
+          - os: ubuntu-latest
+            toolchain: stable
             args: --no-default-features --features all
-          - toolchain: nightly
+          - os: ubuntu-latest
+            toolchain: nightly
+            args: --all-features
+          - os: windows-latest
+            toolchain: stable
+            args: --no-default-features --features all
+          - os: windows-latest
+            toolchain: nightly
+            args: --all-features
+          - os: macos-latest
+            toolchain: stable
+            args: --no-default-features --features all
+          - os: macos-latest
+            toolchain: nightly
             args: --all-features
 
     steps:
@@ -77,7 +91,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install ${{ matrix.toolchain }} toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
 
@@ -86,6 +100,146 @@ jobs:
 
       - name: Run tests
         run: cargo test ${{ matrix.args }}
+
+  feature-matrix:
+    name: Feature Matrix (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: stable-no-default
+            toolchain: stable
+            args: --no-default-features
+          - name: stable-inplace-vector
+            toolchain: stable
+            args: --no-default-features --features inplace_vector
+          - name: stable-inplace-string
+            toolchain: stable
+            args: --no-default-features --features inplace_string
+          - toolchain: stable
+            name: stable-all
+            args: --no-default-features --features all
+          - toolchain: nightly
+            name: nightly-all-features
+            args: --all-features
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ${{ matrix.toolchain }} toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check feature combination
+        run: cargo check ${{ matrix.args }}
+
+  docs:
+    name: Docs (${{ matrix.toolchain }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - toolchain: stable
+            args: --no-default-features --features all --no-deps
+          - toolchain: nightly
+            args: --all-features --no-deps
+
+    env:
+      RUSTDOCFLAGS: -D warnings
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ${{ matrix.toolchain }} toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build docs
+        run: cargo doc ${{ matrix.args }}
+
+  examples:
+    name: Examples (${{ matrix.toolchain }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - toolchain: stable
+            args: --no-default-features --features all --examples
+          - toolchain: nightly
+            args: --all-features --examples
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ${{ matrix.toolchain }} toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check examples
+        run: cargo check ${{ matrix.args }}
+
+  release:
+    name: Release Smoke Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run release tests
+        run: cargo test --release --no-default-features --features all
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify package
+        run: cargo package
+
+  semver:
+    name: Semver
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
 
   miri:
     name: Miri
