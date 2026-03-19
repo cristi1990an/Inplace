@@ -15,5 +15,5 @@ default = ["all"]
 all = ["inplace_vector", "inplace_string"]
 
 inplace_vector = []
-inplace_string = []
+inplace_string = ["inplace_vector"]
 nightly = []
