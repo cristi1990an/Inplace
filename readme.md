@@ -26,7 +26,7 @@ To enable unstable Pattern-gated APIs, build with nightly and the `nightly` feat
 
 ```toml
 [dependencies]
-inplace_containers = { version = "0.3.4", features = ["nightly"] }
+inplace_containers = { version = "0.3.5", features = ["nightly"] }
 ```
 
 ```sh
@@ -42,9 +42,11 @@ cargo +nightly build
 A fixed-capacity vector that stores `N` elements of type `T` inline.
 
 ```rust
-use inplace_containers::InplaceVector;
+use inplace_containers::inplace_vec;
 
-let mut vec = InplaceVector::<i32, 5>::new();
+// Start with an empty vector with capacity for five elements.
+let mut vec = inplace_vec![5;];
+// Fill it using the familiar Vec-like mutation APIs.
 vec.push(1);
 vec.push(2);
 vec.extend_from_slice(&[3, 4, 5]);
@@ -52,6 +54,7 @@ vec.extend_from_slice(&[3, 4, 5]);
 assert_eq!(vec.len(), 5);
 assert!(vec.is_full());
 
+// Removing from the end returns the last value.
 let last = vec.pop();
 assert_eq!(last, Some(5));
 ```
@@ -85,9 +88,11 @@ assert_eq!(last, Some(5));
 A fixed-capacity, stack-allocated string type.
 
 ```rust
-use inplace_containers::InplaceString;
+use inplace_containers::inplace_string;
 
-let mut s: InplaceString<10> = InplaceString::new();
+// Start with an empty string with room for ten UTF-8 bytes.
+let mut s = inplace_string![10;];
+// Build the contents incrementally.
 s.push_str("hello");
 s.push(' ');
 s.push_str("rust");
@@ -133,9 +138,13 @@ assert_eq!(s.as_str(), "hello rust");
 ```rust
 use inplace_containers::{inplace_vec, inplace_string};
 
+// Explicit capacity with initial elements.
 let vec = inplace_vec![4; 1, 2, 3];
+// Capacity inferred from the literal length.
 let s = inplace_string!("hello");
+// Explicit capacity with initial contents.
 let s2 = inplace_string![10; "hello"];
+// Explicit capacity, empty initial value.
 let s3 = inplace_string![10;];
 ```
 
@@ -145,7 +154,7 @@ let s3 = inplace_string![10;];
 
 - `unsafe` is used internally for performance.
 - Methods like `unchecked_push`, `unchecked_insert`, and `set_len` bypass checks.
-- `InplaceString` UTF-8 safety is only guaranteed for literals or checked strings.
+- Safe `InplaceString` constructors and mutation methods preserve UTF-8; `unsafe` methods require the caller to maintain capacity and UTF-8 invariants.
 
 ---
 
