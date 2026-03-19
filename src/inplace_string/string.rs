@@ -2387,8 +2387,18 @@ impl BoundedDisplay for char {}
 mod tests {
     use super::*;
     use crate::inplace_string;
+    use core::mem::size_of;
 
     const CAP: usize = 16;
+
+    #[test]
+    #[inline]
+    fn option_has_same_size_as_string() {
+        assert_eq!(
+            size_of::<Option<InplaceString<CAP>>>(),
+            size_of::<InplaceString<CAP>>()
+        );
+    }
 
     #[test]
     #[inline]

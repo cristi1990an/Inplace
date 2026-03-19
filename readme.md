@@ -14,6 +14,7 @@
 - Iterators, `IntoIterator`, and `Extend` support.
 - Clone, Debug, PartialEq, Hash, Ord, and conversions implemented.
 - UTF-8 correctness for `InplaceString`.
+- Niche-optimized layout keeps `Option<InplaceString<N>>` the same size as `InplaceString<N>` and `Option<InplaceVector<T, N>>` the same size as `InplaceVector<T, N>`.
 - Compile-time capacity checks with `inplace_vec!` macro.
 - Optional `nightly` feature enables unstable Pattern-gated APIs (requires nightly Rust).
 
@@ -25,7 +26,7 @@ To enable unstable Pattern-gated APIs, build with nightly and the `nightly` feat
 
 ```toml
 [dependencies]
-inplace_containers = { version = "0.3.1", features = ["nightly"] }
+inplace_containers = { version = "0.3.4", features = ["nightly"] }
 ```
 
 ```sh
@@ -144,7 +145,6 @@ let s3 = inplace_string![10;];
 
 - `unsafe` is used internally for performance.
 - Methods like `unchecked_push`, `unchecked_insert`, and `set_len` bypass checks.
-- Always ensure capacity is not exceeded to avoid undefined behavior.
 - `InplaceString` UTF-8 safety is only guaranteed for literals or checked strings.
 
 ---

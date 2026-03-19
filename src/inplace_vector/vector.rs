@@ -14,6 +14,8 @@ use core::{
 /// A fixed-capacity vector stored inline.
 ///
 /// `InplaceVector<T, N>` stores up to `N` elements without heap allocation.
+/// The length is stored using a `NonZeroUsize` to enable niche optimization,
+/// making `Option<InplaceVector<T, N>>` the same size as `InplaceVector<T, N>`.
 ///
 /// # Examples
 ///
@@ -2673,11 +2675,21 @@ impl<T, const N: usize> AsRef<[T]> for IntoIter<T, N> {
 mod tests {
     use crate::inplace_vec;
     use core::cell::Cell;
+    use core::mem::size_of;
     use std::borrow::{Borrow, BorrowMut};
     use std::cmp::Ordering;
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 
     use super::*;
+
+    #[test]
+    #[inline]
+    fn option_has_same_size_as_vector() {
+        assert_eq!(
+            size_of::<Option<InplaceVector<u8, 16>>>(),
+            size_of::<InplaceVector<u8, 16>>()
+        );
+    }
 
     #[test]
     #[inline]
