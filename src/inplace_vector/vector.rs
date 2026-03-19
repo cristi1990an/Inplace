@@ -47,6 +47,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     ///
     /// The capacity is fixed at `N`.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -95,6 +99,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Returns the remaining spare capacity as a slice of `MaybeUninit<T>`.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -120,6 +128,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Returns the number of elements in the vector.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -138,6 +150,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Returns the total capacity of the vector.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -153,6 +169,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Returns how many more elements the vector can hold.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -170,6 +190,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Returns `true` if the vector has no remaining capacity.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -189,6 +213,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Returns `true` if the vector contains no elements.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -206,6 +234,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Returns a raw pointer to the vector's buffer.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -226,6 +258,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Returns a mutable raw pointer to the vector's buffer.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -248,6 +284,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Returns a shared slice of all initialized elements.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -267,6 +307,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Returns a mutable slice of all initialized elements.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -347,6 +391,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// Pushes a new value only if capacity allows it.
     ///
     /// Returns `Ok(&T)` with a reference to the newly added element, or `Err(value)` if full.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -430,6 +478,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     ///
     /// Returns `Ok(&mut T)` with a mutable reference to the newly added element, or `Err(value)` if full.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -455,6 +507,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// Returns a slice to the newly added elements on success.
     ///
     /// Returns `None` if the slice would exceed remaining capacity.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -519,6 +575,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     ///
     /// Returns `None` if the slice would exceed remaining capacity.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -582,6 +642,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// Returns `Ok(())` if all elements fit, or `Err(remaining)` with the tail that did not fit.
     ///
     /// This function never panics; it returns the remaining slice when capacity is insufficient.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -678,6 +742,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     ///
     /// Returns a mutable slice to the appended elements, or `None` if `other.len()` exceeds
     /// remaining capacity.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -840,6 +908,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Removes the last element and returns it, or `None` if empty.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -860,6 +932,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Removes the last element if the predicate returns `true`.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if `predicate` panics.
     ///
     /// # Examples
     ///
@@ -887,6 +963,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Clears the vector, removing all elements.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -905,6 +985,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// Shortens the vector to the specified length.
     ///
     /// If `new_len` is greater than the current length, this has no effect.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -1328,6 +1412,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Removes consecutive elements that satisfy the given equivalence relation.
     ///
+    /// # Panics
+    ///
+    /// Panics only if `same_bucket` panics.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1375,6 +1463,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Removes consecutive duplicate elements.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1397,6 +1489,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Removes consecutive elements that map to the same key.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if `key` panics.
     ///
     /// # Examples
     ///
@@ -1423,6 +1519,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// Creates an iterator that removes elements matching a predicate.
     ///
     /// Elements for which the predicate returns `true` are removed and yielded.
+    ///
+    /// # Panics
+    ///
+    /// Constructing the iterator does not panic. Iteration panics only if `predicate` panics.
     ///
     /// # Examples
     ///
@@ -1456,6 +1556,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
 
     /// Retains only the elements specified by the predicate.
     ///
+    /// # Panics
+    ///
+    /// Panics only if `f` panics.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1477,6 +1581,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     }
 
     /// Retains only the elements specified by the predicate, allowing mutation.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if `f` panics.
     ///
     /// # Examples
     ///

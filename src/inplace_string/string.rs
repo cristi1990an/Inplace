@@ -154,6 +154,10 @@ impl<const N: usize> InplaceString<N> {
     ///
     /// Capacity is fixed at `N`.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -176,6 +180,10 @@ impl<const N: usize> InplaceString<N> {
     ///
     /// This is always safe because all mutations preserve UTF-8 validity.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -191,6 +199,10 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Returns the string as a mutable `&mut str`.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -210,6 +222,10 @@ impl<const N: usize> InplaceString<N> {
 
     /// Returns the underlying bytes of the string.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -225,6 +241,10 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Returns the fixed capacity of this string.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -242,6 +262,10 @@ impl<const N: usize> InplaceString<N> {
 
     /// Returns remaining unused capacity.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -258,6 +282,10 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Returns `true` if the string is at full capacity.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -305,6 +333,10 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Attempts to append a character, returning an error if capacity is exceeded.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -386,6 +418,10 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Attempts to append the string slice, returning an error if capacity is exceeded.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -654,6 +690,10 @@ impl<const N: usize> InplaceString<N> {
 
     /// Returns the current length in bytes.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -670,6 +710,10 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Returns `true` if the string is empty.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -689,6 +733,10 @@ impl<const N: usize> InplaceString<N> {
 
     /// Clears the string, removing all characters.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -704,6 +752,10 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Removes the last character and returns it, or `None` if empty.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -1028,6 +1080,10 @@ impl<const N: usize> InplaceString<N> {
     ///
     /// Returns `Err` if the bytes are not valid UTF-8 or exceed capacity.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1090,6 +1146,10 @@ impl<const N: usize> InplaceString<N> {
     ///
     /// Returns `Err(InplaceError)` if the resulting string would exceed capacity.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1131,6 +1191,10 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Converts the string into its underlying byte vector.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.
     ///
     /// # Examples
     ///
@@ -1221,6 +1285,10 @@ impl<const N: usize> InplaceString<N> {
     /// Returns `Ok(())` if a replacement occurred or no match was found,
     /// or `Err(InplaceError)` if the replacement would exceed capacity.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Nightly
     ///
     /// This method requires the crate feature `nightly` (and nightly Rust).
@@ -1281,6 +1349,10 @@ impl<const N: usize> InplaceString<N> {
     /// Returns `Ok(())` if a replacement occurred or no match was found,
     /// or `Err(InplaceError)` if the replacement would exceed capacity.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Nightly
     ///
     /// This method requires the crate feature `nightly` (and nightly Rust).
@@ -1340,6 +1412,10 @@ impl<const N: usize> InplaceString<N> {
 
     /// Removes all matches of the pattern in-place.
     ///
+    /// # Panics
+    ///
+    /// This method does not panic.
+    ///
     /// # Nightly
     ///
     /// This method requires the crate feature `nightly` (and nightly Rust).
@@ -1375,6 +1451,10 @@ impl<const N: usize> InplaceString<N> {
     ///
     /// Characters for which the predicate returns `true` are removed and yielded.
     ///
+    /// # Panics
+    ///
+    /// Constructing the iterator does not panic. Iteration panics only if `predicate` panics.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1403,6 +1483,10 @@ impl<const N: usize> InplaceString<N> {
     }
 
     /// Retains only the characters specified by the predicate.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if `f` panics.
     ///
     /// # Examples
     ///
@@ -1492,7 +1576,7 @@ impl<'a, const N: usize> Iterator for StringDrain<'a, N> {
         }
 
         unsafe {
-            let base = (*self.string).as_ptr();
+            let base = (*self.string).data.as_ptr();
             let bytes = std::slice::from_raw_parts(base.add(self.cur), self.end - self.cur);
             let s = std::str::from_utf8_unchecked(bytes);
             let ch = s.chars().next().expect("valid UTF-8");
@@ -1521,8 +1605,10 @@ impl<'a, const N: usize> DoubleEndedIterator for StringDrain<'a, N> {
                 start -= 1;
             }
 
-            let slice =
-                std::slice::from_raw_parts((*self.string).data.as_ptr().add(start), self.end - start);
+            let slice = std::slice::from_raw_parts(
+                (*self.string).data.as_ptr().add(start),
+                self.end - start,
+            );
             let s = std::str::from_utf8_unchecked(slice);
             let ch = s.chars().next().expect("valid UTF-8");
             self.end = start;
@@ -1538,7 +1624,7 @@ impl<'a, const N: usize> Drop for StringDrain<'a, N> {
     fn drop(&mut self) {
         unsafe {
             if self.tail_len > 0 {
-                let base = (*self.string).as_mut_ptr();
+                let base = (*self.string).data.as_mut_ptr();
                 if self.start != self.tail_start {
                     ptr::copy(
                         base.add(self.tail_start),

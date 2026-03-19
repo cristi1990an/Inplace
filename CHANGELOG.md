@@ -6,7 +6,9 @@ The format is based on Keep a Changelog, with an `Unreleased` section for work i
 
 ## [Unreleased]
 
-- No unreleased changes yet.
+### Changed
+
+- Standardized rustdoc on the public inherent `InplaceString` and `InplaceVector` APIs to explicitly document panic behavior, and to clarify closure-driven panic behavior where relevant.
 
 ## [0.3.5] - 2026-03-19
 
