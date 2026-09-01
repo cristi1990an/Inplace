@@ -28,7 +28,7 @@ The default features are `all` and `std`. To use the containers without the stan
 
 ```toml
 [dependencies]
-inplace_containers = { version = "0.4.0", default-features = false, features = ["all"] }
+inplace_containers = { version = "0.4.1", default-features = false, features = ["all"] }
 ```
 
 The `std` feature enables integrations that require the standard library, such as `std::io::Write`, `String` conversions, C string conversions, and `std::error::Error` implementations.
@@ -41,7 +41,7 @@ To enable unstable Pattern-gated APIs, build with nightly and the `nightly` feat
 
 ```toml
 [dependencies]
-inplace_containers = { version = "0.4.0", features = ["nightly"] }
+inplace_containers = { version = "0.4.1", features = ["nightly"] }
 ```
 
 ```sh
