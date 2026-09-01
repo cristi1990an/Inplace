@@ -1,6 +1,6 @@
 [package]
 name = "inplace_containers"
-version = "0.3.6"
+version = "0.4.0"
 edition = "2021"
 description = "In-place, fixed-capacity containers with optional features"
 license = "MIT OR Apache-2.0"
@@ -10,10 +10,16 @@ documentation = "https://docs.rs/inplace_containers/latest/inplace_containers/"
 
 
 [features]
-default = ["all"]
+default = ["all", "std"]
+
+std = []
 
 all = ["inplace_vector", "inplace_string"]
 
 inplace_vector = []
 inplace_string = ["inplace_vector"]
 nightly = []
+
+[[example]]
+name = "basic"
+required-features = ["all"]

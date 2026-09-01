@@ -62,7 +62,7 @@ jobs:
         run: cargo clippy ${{ matrix.args }}
 
   test:
-    name: Test (${{ matrix.os }}, ${{ matrix.toolchain }})
+    name: Test (${{ matrix.os }}, ${{ matrix.toolchain }}, ${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -70,21 +70,31 @@ jobs:
         include:
           - os: ubuntu-latest
             toolchain: stable
+            name: no-std
             args: --no-default-features --features all
           - os: ubuntu-latest
+            toolchain: stable
+            name: default
+            args: ""
+          - os: ubuntu-latest
             toolchain: nightly
+            name: nightly-all
             args: --all-features
           - os: windows-latest
             toolchain: stable
+            name: no-std
             args: --no-default-features --features all
           - os: windows-latest
             toolchain: nightly
+            name: nightly-all
             args: --all-features
           - os: macos-latest
             toolchain: stable
+            name: no-std
             args: --no-default-features --features all
           - os: macos-latest
             toolchain: nightly
+            name: nightly-all
             args: --all-features
 
     steps:
@@ -144,12 +154,21 @@ jobs:
           - name: stable-inplace-vector
             toolchain: stable
             args: --no-default-features --features inplace_vector
+          - name: stable-inplace-vector-std
+            toolchain: stable
+            args: --no-default-features --features "inplace_vector,std"
           - name: stable-inplace-string
             toolchain: stable
             args: --no-default-features --features inplace_string
+          - name: stable-inplace-string-std
+            toolchain: stable
+            args: --no-default-features --features "inplace_string,std"
           - toolchain: stable
             name: stable-all
             args: --no-default-features --features all
+          - toolchain: stable
+            name: stable-all-std
+            args: --no-default-features --features "all,std"
           - toolchain: nightly
             name: nightly-all-features
             args: --all-features

@@ -6,7 +6,7 @@ use core::{
     marker::PhantomData,
     mem::MaybeUninit,
     num::NonZeroUsize,
-    ops::{Add, Deref, DerefMut, Index, IndexMut, RangeBounds},
+    ops::{Deref, DerefMut, Index, IndexMut, RangeBounds},
     ptr,
     slice::SliceIndex,
 };
@@ -32,6 +32,29 @@ pub struct InplaceVector<T, const N: usize> {
     size: NonZeroUsize,
 }
 
+/// Creates an [`InplaceVector`] by cloning a fixed-size sequence.
+///
+/// This trait is implemented for arrays. The method is also available through
+/// types that dereference to an array. Import [`ToInplaceOwned`] to make the
+/// method available through dot syntax.
+///
+/// # Examples
+///
+/// ```
+/// use inplace_containers::prelude::*;
+///
+/// let values = [1, 2, 3];
+/// let vector = values.to_inplace_owned();
+/// assert_eq!(vector, &[1, 2, 3]);
+/// ```
+pub trait ToInplaceOwned {
+    /// The resulting owned in-place type.
+    type Owned;
+
+    /// Clones the fixed-size sequence into its in-place owned form.
+    fn to_inplace_owned(&self) -> Self::Owned;
+}
+
 /// Errors returned by fallible `InplaceVector` conversions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InplaceVectorError {
@@ -43,6 +66,9 @@ pub enum InplaceVectorError {
 }
 
 impl<T, const N: usize> InplaceVector<T, N> {
+    /// The fixed capacity of this vector.
+    pub const CAPACITY: usize = N;
+
     /// Creates a new empty `InplaceVector`.
     ///
     /// The capacity is fixed at `N`.
@@ -92,9 +118,9 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// ```
     ///
     #[inline]
-    pub unsafe fn set_len(&mut self, new_len: usize) {
+    pub const unsafe fn set_len(&mut self, new_len: usize) {
         debug_assert!(new_len <= N);
-        self.size = NonZeroUsize::new_unchecked(new_len.add(1));
+        self.size = NonZeroUsize::new_unchecked(new_len + 1);
     }
 
     /// Returns the remaining spare capacity as a slice of `MaybeUninit<T>`.
@@ -120,10 +146,10 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// ```
     #[must_use]
     #[inline]
-    pub fn spare_capacity_mut(&mut self) -> &mut [MaybeUninit<T>] {
+    pub const fn spare_capacity_mut(&mut self) -> &mut [MaybeUninit<T>] {
         let len = self.capacity() - self.len();
         let ptr = unsafe { self.data.as_mut_ptr().add(self.len()) };
-        unsafe { std::slice::from_raw_parts_mut(ptr, len) }
+        unsafe { core::slice::from_raw_parts_mut(ptr, len) }
     }
 
     /// Returns the number of elements in the vector.
@@ -303,7 +329,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     pub const fn as_slice(&self) -> &[T] {
         let len = self.len();
         let ptr = self.as_ptr();
-        unsafe { std::slice::from_raw_parts(ptr, len) }
+        unsafe { core::slice::from_raw_parts(ptr, len) }
     }
 
     /// Returns a mutable slice of all initialized elements.
@@ -328,7 +354,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     pub const fn as_mut_slice(&mut self) -> &mut [T] {
         let len = self.len();
         let ptr = self.as_mut_ptr();
-        unsafe { std::slice::from_raw_parts_mut(ptr, len) }
+        unsafe { core::slice::from_raw_parts_mut(ptr, len) }
     }
 
     /// Pushes a new value into the vector without checking that capacity is not exceeded.
@@ -356,12 +382,17 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// ```
     ///
     #[inline]
-    pub unsafe fn unchecked_push(&mut self, value: T) -> &T {
+    pub const unsafe fn unchecked_push(&mut self, value: T) -> &T {
         debug_assert!(!self.is_full());
-        let uninit_tail = self.spare_capacity_mut().get_unchecked_mut(0);
-        uninit_tail.write(value);
-        self.set_len(self.len() + 1);
-        self.get_unchecked(self.len() - 1)
+        let index = self.len();
+        unsafe {
+            self.data
+                .as_mut_ptr()
+                .add(index)
+                .write(MaybeUninit::new(value));
+            self.set_len(index + 1);
+            &*self.as_ptr().add(index)
+        }
     }
 
     /// Appends an element to the back of the vector and returns a reference to it.
@@ -408,7 +439,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// ```
     ///
     #[inline]
-    pub fn push_within_capacity(&mut self, value: T) -> Result<&T, T> {
+    pub const fn push_within_capacity(&mut self, value: T) -> Result<&T, T> {
         if self.is_full() {
             Err(value)
         } else {
@@ -440,13 +471,17 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// ```
     ///
     #[inline]
-    pub unsafe fn unchecked_push_mut(&mut self, value: T) -> &mut T {
+    pub const unsafe fn unchecked_push_mut(&mut self, value: T) -> &mut T {
         debug_assert!(!self.is_full());
-        let uninit_tail = self.spare_capacity_mut().get_unchecked_mut(0);
-        uninit_tail.write(value);
-        let new_len = self.len() + 1;
-        self.set_len(new_len);
-        self.get_unchecked_mut(new_len - 1)
+        let index = self.len();
+        unsafe {
+            self.data
+                .as_mut_ptr()
+                .add(index)
+                .write(MaybeUninit::new(value));
+            self.set_len(index + 1);
+            &mut *self.as_mut_ptr().add(index)
+        }
     }
 
     /// Appends an element to the back of the vector and returns a mutable reference to it.
@@ -494,7 +529,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     /// ```
     ///
     #[inline]
-    pub fn push_within_capacity_mut(&mut self, value: T) -> Result<&mut T, T> {
+    pub const fn push_within_capacity_mut(&mut self, value: T) -> Result<&mut T, T> {
         if self.is_full() {
             Err(value)
         } else {
@@ -702,15 +737,15 @@ impl<T, const N: usize> InplaceVector<T, N> {
         let len = self.len();
 
         let start = match src.start_bound() {
-            std::ops::Bound::Included(&i) => i,
-            std::ops::Bound::Excluded(&i) => i + 1,
-            std::ops::Bound::Unbounded => 0,
+            core::ops::Bound::Included(&i) => i,
+            core::ops::Bound::Excluded(&i) => i + 1,
+            core::ops::Bound::Unbounded => 0,
         };
 
         let end = match src.end_bound() {
-            std::ops::Bound::Included(&i) => i + 1,
-            std::ops::Bound::Excluded(&i) => i,
-            std::ops::Bound::Unbounded => len,
+            core::ops::Bound::Included(&i) => i + 1,
+            core::ops::Bound::Excluded(&i) => i,
+            core::ops::Bound::Unbounded => len,
         };
 
         assert!(
@@ -1287,7 +1322,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
     where
         R: RangeBounds<usize>,
     {
-        use std::ops::Bound::*;
+        use core::ops::Bound::*;
 
         let len = self.len();
 
@@ -1351,7 +1386,7 @@ impl<T, const N: usize> InplaceVector<T, N> {
         R: RangeBounds<usize>,
         I: IntoIterator<Item = T>,
     {
-        use std::ops::Bound::*;
+        use core::ops::Bound::*;
 
         let len = self.len();
         let start = match range.start_bound() {
@@ -1718,6 +1753,7 @@ impl<'a, T: Clone, const N: usize> Extend<&'a T> for InplaceVector<T, N> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<const N: usize> std::io::Write for InplaceVector<u8, N> {
     /// Writes bytes into the vector, returning how many were written.
     ///
@@ -1739,7 +1775,7 @@ impl<const N: usize> std::io::Write for InplaceVector<u8, N> {
         let old_len = self.len();
         let min = self.remaining_capacity().min(buf.len());
         unsafe {
-            std::ptr::copy_nonoverlapping(buf.as_ptr(), self.as_mut_ptr().add(old_len), min);
+            core::ptr::copy_nonoverlapping(buf.as_ptr(), self.as_mut_ptr().add(old_len), min);
             self.set_len(old_len + min);
         }
 
@@ -1794,8 +1830,8 @@ impl<T, const N: usize> IntoIterator for InplaceVector<T, N> {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         let len = self.len();
-        let data = unsafe { std::ptr::read(&self.data) };
-        std::mem::forget(self);
+        let data = unsafe { core::ptr::read(&self.data) };
+        core::mem::forget(self);
         IntoIter {
             data,
             begin: 0,
@@ -1807,7 +1843,7 @@ impl<T, const N: usize> IntoIterator for InplaceVector<T, N> {
 impl<'a, T, const N: usize> IntoIterator for &'a InplaceVector<T, N> {
     type Item = &'a T;
 
-    type IntoIter = std::slice::Iter<'a, T>;
+    type IntoIter = core::slice::Iter<'a, T>;
 
     /// Creates an iterator over shared references.
     ///
@@ -1831,7 +1867,7 @@ impl<'a, T, const N: usize> IntoIterator for &'a InplaceVector<T, N> {
 impl<'a, T, const N: usize> IntoIterator for &'a mut InplaceVector<T, N> {
     type Item = &'a mut T;
 
-    type IntoIter = std::slice::IterMut<'a, T>;
+    type IntoIter = core::slice::IterMut<'a, T>;
 
     /// Creates an iterator over mutable references.
     ///
@@ -2116,7 +2152,7 @@ where
     /// assert!(a < b);
     /// ```
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         self.as_slice().partial_cmp(other.as_slice())
     }
 }
@@ -2139,7 +2175,7 @@ where
     /// assert!(a.cmp(&b).is_lt());
     /// ```
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.as_slice().cmp(other.as_slice())
     }
 }
@@ -2163,7 +2199,7 @@ where
     /// v.hash(&mut hasher);
     /// ```
     #[inline]
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.as_slice().hash(state);
     }
 }
@@ -2181,7 +2217,7 @@ impl<T: fmt::Debug, const N: usize> Debug for InplaceVector<T, N> {
     /// assert_eq!(format!("{:?}", v), "[1]");
     /// ```
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
 }
@@ -2244,7 +2280,7 @@ impl<T, const N: usize> AsMut<[T]> for InplaceVector<T, N> {
     }
 }
 
-impl<T, const N: usize> std::borrow::Borrow<[T]> for InplaceVector<T, N> {
+impl<T, const N: usize> core::borrow::Borrow<[T]> for InplaceVector<T, N> {
     /// Borrows as a slice.
     ///
     /// # Examples
@@ -2264,7 +2300,7 @@ impl<T, const N: usize> std::borrow::Borrow<[T]> for InplaceVector<T, N> {
     }
 }
 
-impl<T, const N: usize> std::borrow::BorrowMut<[T]> for InplaceVector<T, N> {
+impl<T, const N: usize> core::borrow::BorrowMut<[T]> for InplaceVector<T, N> {
     /// Mutably borrows as a slice.
     ///
     /// # Examples
@@ -2301,10 +2337,19 @@ impl<T, const N: usize> From<[T; N]> for InplaceVector<T, N> {
         let mut result = Self::new();
         unsafe {
             result.set_len(N);
-            ptr::copy_nonoverlapping(value.as_ptr(), result.as_mut_ptr(), N);
-            std::mem::forget(value);
+            core::ptr::copy_nonoverlapping(value.as_ptr(), result.as_mut_ptr(), N);
+            core::mem::forget(value);
         };
         result
+    }
+}
+
+impl<T: Clone, const N: usize> ToInplaceOwned for [T; N] {
+    type Owned = InplaceVector<T, N>;
+
+    #[inline]
+    fn to_inplace_owned(&self) -> Self::Owned {
+        InplaceVector::from(<[T; N] as Clone>::clone(self))
     }
 }
 
@@ -2403,7 +2448,7 @@ impl<T: Clone, const N: usize> TryFrom<&InplaceVector<T, N>> for [T; N] {
         }
 
         let slice = vec.as_slice();
-        Ok(std::array::from_fn(|i| slice[i].clone()))
+        Ok(core::array::from_fn(|i| slice[i].clone()))
     }
 }
 
@@ -2668,7 +2713,7 @@ impl<T, const N: usize> IntoIter<T, N> {
     #[inline]
     pub fn as_slice(&self) -> &[T] {
         let ptr = self.as_ptr();
-        unsafe { std::slice::from_raw_parts(ptr, self.len()) }
+        unsafe { core::slice::from_raw_parts(ptr, self.len()) }
     }
 
     /// Returns a mutable slice of the remaining iterator elements.
@@ -2690,7 +2735,7 @@ impl<T, const N: usize> IntoIter<T, N> {
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         let ptr = self.as_mut_ptr();
-        unsafe { std::slice::from_raw_parts_mut(ptr, self.len()) }
+        unsafe { core::slice::from_raw_parts_mut(ptr, self.len()) }
     }
 
     #[inline]
@@ -2784,9 +2829,13 @@ mod tests {
     use crate::inplace_vec;
     use core::cell::Cell;
     use core::mem::size_of;
-    use std::borrow::{Borrow, BorrowMut};
+    use std::borrow::{Borrow, BorrowMut, ToOwned};
     use std::cmp::Ordering;
+    use std::format;
+    use std::string::ToString;
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+    use std::vec;
+    use std::vec::Vec;
 
     use super::*;
 
@@ -2797,6 +2846,7 @@ mod tests {
             size_of::<Option<InplaceVector<u8, 16>>>(),
             size_of::<InplaceVector<u8, 16>>()
         );
+        assert_eq!(InplaceVector::<u8, 16>::CAPACITY, 16);
     }
 
     #[test]
@@ -2853,6 +2903,13 @@ mod tests {
 
         assert_eq!(capacity_spec.first(), Some(42).as_ref());
         assert_eq!(capacity_spec.capacity(), 5);
+    }
+
+    #[test]
+    #[inline]
+    fn const_macro_construction() {
+        const VECTOR: InplaceVector<i32, 3> = inplace_vec![1, 2, 3];
+        assert_eq!(VECTOR.as_slice(), &[1, 2, 3]);
     }
 
     #[test]
@@ -3145,6 +3202,29 @@ mod tests {
         assert_eq!(v2, &[10, 20]);
         let big: &[u16] = &[1, 2, 3, 4, 5];
         assert!(InplaceVector::<u16, 4>::try_from(big).is_err());
+    }
+
+    #[test]
+    #[inline]
+    fn to_inplace_owned_supports_arrays_and_deref_wrappers() {
+        use crate::prelude::*;
+        use core::ops::Deref;
+
+        struct Wrapper([i32; 3]);
+
+        impl Deref for Wrapper {
+            type Target = [i32; 3];
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        let array = [1, 2, 3];
+        assert_eq!(array.to_inplace_owned(), &[1, 2, 3]);
+
+        let wrapper = Wrapper([4, 5, 6]);
+        assert_eq!(wrapper.to_inplace_owned(), &[4, 5, 6]);
     }
 
     #[test]
@@ -3511,6 +3591,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     #[inline]
     fn write_trait_behavior() {
         let mut v = inplace_vec![4;];

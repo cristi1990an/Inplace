@@ -108,9 +108,9 @@ pub struct InplaceError {
     required_len: usize,
 }
 
-impl std::fmt::Display for InplaceError {
+impl fmt::Display for InplaceError {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "InplaceString capacity exceeded. Capacity: {} Len: {} Required len: {}",
@@ -119,6 +119,7 @@ impl std::fmt::Display for InplaceError {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for InplaceError {
     #[inline]
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
@@ -128,10 +129,11 @@ impl std::error::Error for InplaceError {
 
 #[derive(Debug)]
 pub enum InplaceUtf8Error {
-    Utf8Error(std::str::Utf8Error),
+    Utf8Error(core::str::Utf8Error),
     InplaceError(InplaceError),
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for InplaceUtf8Error {
     #[inline]
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
@@ -139,9 +141,9 @@ impl std::error::Error for InplaceUtf8Error {
     }
 }
 
-impl std::fmt::Display for InplaceUtf8Error {
+impl fmt::Display for InplaceUtf8Error {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             InplaceUtf8Error::Utf8Error(utf8_error) => write!(f, "{}", utf8_error),
             InplaceUtf8Error::InplaceError(inplace_error) => write!(f, "{}", inplace_error),
@@ -150,6 +152,9 @@ impl std::fmt::Display for InplaceUtf8Error {
 }
 
 impl<const N: usize> InplaceString<N> {
+    /// The fixed capacity of this string, measured in UTF-8 bytes.
+    pub const CAPACITY: usize = N;
+
     /// Creates a new empty `InplaceString`.
     ///
     /// Capacity is fixed at `N`.
@@ -194,8 +199,10 @@ impl<const N: usize> InplaceString<N> {
     /// ```
     #[must_use]
     #[inline]
-    pub fn as_str(&self) -> &str {
-        unsafe { str::from_utf8_unchecked(self.data.get_unchecked(..self.len())) }
+    pub const fn as_str(&self) -> &str {
+        unsafe {
+            str::from_utf8_unchecked(core::slice::from_raw_parts(self.data.as_ptr(), self.len()))
+        }
     }
 
     /// Returns the string as a mutable `&mut str`.
@@ -215,9 +222,14 @@ impl<const N: usize> InplaceString<N> {
     /// ```
     #[must_use]
     #[inline]
-    pub fn as_mut_str(&mut self) -> &mut str {
+    pub const fn as_mut_str(&mut self) -> &mut str {
         let len = self.len();
-        unsafe { str::from_utf8_unchecked_mut(self.data.get_unchecked_mut(..len)) }
+        unsafe {
+            str::from_utf8_unchecked_mut(core::slice::from_raw_parts_mut(
+                self.data.as_mut_ptr(),
+                len,
+            ))
+        }
     }
 
     /// Returns the underlying bytes of the string.
@@ -236,8 +248,8 @@ impl<const N: usize> InplaceString<N> {
     /// ```
     #[must_use]
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.data[..self.len()]
+    pub const fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.len()) }
     }
 
     /// Returns the fixed capacity of this string.
@@ -322,7 +334,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s, "a");
     /// ```
     #[inline]
-    pub unsafe fn unchecked_push(&mut self, ch: char) {
+    pub const unsafe fn unchecked_push(&mut self, ch: char) {
         let len = self.len();
         let ch_len = ch.len_utf8();
         debug_assert!(ch_len <= self.remaining_capacity());
@@ -348,7 +360,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert!(s.try_push('b').is_err());
     /// ```
     #[inline]
-    pub fn try_push(&mut self, ch: char) -> Result<(), InplaceError> {
+    pub const fn try_push(&mut self, ch: char) -> Result<(), InplaceError> {
         let ch_len = ch.len_utf8();
         if self.remaining_capacity() < ch_len {
             return Err(InplaceError {
@@ -378,8 +390,11 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s, "a");
     /// ```
     #[inline]
-    pub fn push(&mut self, ch: char) {
-        self.try_push(ch).unwrap();
+    pub const fn push(&mut self, ch: char) {
+        match self.try_push(ch) {
+            Ok(()) => {}
+            Err(_) => panic!("InplaceString push should not exceed capacity"),
+        }
     }
 
     /// Appends the slice into the string without checking that capacity is not exceeded.
@@ -404,11 +419,11 @@ impl<const N: usize> InplaceString<N> {
     /// ```
     ///
     #[inline]
-    pub unsafe fn unchecked_push_str(&mut self, string: &str) {
+    pub const unsafe fn unchecked_push_str(&mut self, string: &str) {
         let string_len = string.len();
         debug_assert!(string_len <= self.remaining_capacity());
         unsafe {
-            std::ptr::copy(
+            core::ptr::copy(
                 string.as_ptr(),
                 self.data.as_mut_ptr().add(self.len()),
                 string_len,
@@ -433,7 +448,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert!(s.try_push_str("too").is_err());
     /// ```
     #[inline]
-    pub fn try_push_str(&mut self, string: &str) -> Result<(), InplaceError> {
+    pub const fn try_push_str(&mut self, string: &str) -> Result<(), InplaceError> {
         let string_len = string.len();
         if self.remaining_capacity() < string_len {
             return Err(InplaceError {
@@ -465,8 +480,11 @@ impl<const N: usize> InplaceString<N> {
     /// assert_eq!(s, "hi");
     /// ```
     #[inline]
-    pub fn push_str(&mut self, string: &str) {
-        self.try_push_str(string).unwrap();
+    pub const fn push_str(&mut self, string: &str) {
+        match self.try_push_str(string) {
+            Ok(()) => {}
+            Err(_) => panic!("InplaceString push_str should not exceed capacity"),
+        }
     }
 
     /// Inserts a new char into the string without checking that capacity is not exceeded.
@@ -629,15 +647,15 @@ impl<const N: usize> InplaceString<N> {
         let len = self.len();
 
         let start = match src.start_bound() {
-            std::ops::Bound::Included(&i) => i,
-            std::ops::Bound::Excluded(&i) => i + 1,
-            std::ops::Bound::Unbounded => 0,
+            core::ops::Bound::Included(&i) => i,
+            core::ops::Bound::Excluded(&i) => i + 1,
+            core::ops::Bound::Unbounded => 0,
         };
 
         let end = match src.end_bound() {
-            std::ops::Bound::Included(&i) => i + 1,
-            std::ops::Bound::Excluded(&i) => i,
-            std::ops::Bound::Unbounded => len,
+            core::ops::Bound::Included(&i) => i + 1,
+            core::ops::Bound::Excluded(&i) => i,
+            core::ops::Bound::Unbounded => len,
         };
 
         if start > end || end > len {
@@ -683,9 +701,9 @@ impl<const N: usize> InplaceString<N> {
     /// ```
     ///
     #[inline]
-    pub unsafe fn set_len(&mut self, new_len: usize) {
+    pub const unsafe fn set_len(&mut self, new_len: usize) {
         debug_assert!(new_len <= N);
-        self.size = NonZeroUsize::new_unchecked(new_len.add(1));
+        self.size = NonZeroUsize::new_unchecked(new_len + 1);
     }
 
     /// Returns the current length in bytes.
@@ -747,7 +765,7 @@ impl<const N: usize> InplaceString<N> {
     /// assert!(s.is_empty());
     /// ```
     #[inline]
-    pub fn clear(&mut self) {
+    pub const fn clear(&mut self) {
         unsafe { self.set_len(0) };
     }
 
@@ -864,7 +882,7 @@ impl<const N: usize> InplaceString<N> {
     where
         R: RangeBounds<usize>,
     {
-        use std::ops::Bound::*;
+        use core::ops::Bound::*;
 
         let len = self.len();
         let start = match range.start_bound() {
@@ -924,7 +942,7 @@ impl<const N: usize> InplaceString<N> {
     where
         R: RangeBounds<usize>,
     {
-        use std::ops::Bound::*;
+        use core::ops::Bound::*;
 
         let len = self.len();
         let start = match range.start_bound() {
@@ -1017,7 +1035,7 @@ impl<const N: usize> InplaceString<N> {
         R: RangeBounds<usize>,
         I: IntoIterator<Item = char>,
     {
-        use std::ops::Bound::*;
+        use core::ops::Bound::*;
 
         let len = self.len();
         let start = match range.start_bound() {
@@ -1134,7 +1152,7 @@ impl<const N: usize> InplaceString<N> {
 
         let mut result = Self::new();
         unsafe {
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), result.data.as_mut_ptr(), bytes.len());
+            core::ptr::copy_nonoverlapping(bytes.as_ptr(), result.data.as_mut_ptr(), bytes.len());
             result.set_len(bytes.len());
         }
         Ok(result)
@@ -1211,7 +1229,7 @@ impl<const N: usize> InplaceString<N> {
         let mut result = InplaceVector::new();
 
         unsafe {
-            std::ptr::copy_nonoverlapping(self.as_ptr(), result.as_mut_ptr(), self.len());
+            core::ptr::copy_nonoverlapping(self.as_ptr(), result.as_mut_ptr(), self.len());
             result.set_len(self.len());
         }
 
@@ -1273,7 +1291,7 @@ impl<const N: usize> InplaceString<N> {
         let next = idx + ch.len_utf8();
         unsafe {
             let base = self.data.as_mut_ptr();
-            std::ptr::copy(base.add(next), base.add(idx), len - next);
+            core::ptr::copy(base.add(next), base.add(idx), len - next);
             self.set_len(len - (next - idx));
         }
 
@@ -1577,8 +1595,8 @@ impl<'a, const N: usize> Iterator for StringDrain<'a, N> {
 
         unsafe {
             let base = (*self.string).data.as_ptr();
-            let bytes = std::slice::from_raw_parts(base.add(self.cur), self.end - self.cur);
-            let s = std::str::from_utf8_unchecked(bytes);
+            let bytes = core::slice::from_raw_parts(base.add(self.cur), self.end - self.cur);
+            let s = core::str::from_utf8_unchecked(bytes);
             let ch = s.chars().next().expect("valid UTF-8");
             self.cur += ch.len_utf8();
             Some(ch)
@@ -1605,11 +1623,11 @@ impl<'a, const N: usize> DoubleEndedIterator for StringDrain<'a, N> {
                 start -= 1;
             }
 
-            let slice = std::slice::from_raw_parts(
+            let slice = core::slice::from_raw_parts(
                 (*self.string).data.as_ptr().add(start),
                 self.end - start,
             );
-            let s = std::str::from_utf8_unchecked(slice);
+            let s = core::str::from_utf8_unchecked(slice);
             let ch = s.chars().next().expect("valid UTF-8");
             self.end = start;
             Some(ch)
@@ -1670,8 +1688,8 @@ where
             while self.read < self.len {
                 let read = self.read;
                 let remaining = self.len - read;
-                let bytes = std::slice::from_raw_parts(base.add(read), remaining);
-                let s = std::str::from_utf8_unchecked(bytes);
+                let bytes = core::slice::from_raw_parts(base.add(read), remaining);
+                let s = core::str::from_utf8_unchecked(bytes);
                 let ch = s.chars().next().expect("valid UTF-8");
                 let ch_len = ch.len_utf8();
                 self.read += ch_len;
@@ -1712,8 +1730,8 @@ where
             while self.read < self.len {
                 let read = self.read;
                 let remaining = self.len - read;
-                let bytes = std::slice::from_raw_parts(base.add(read), remaining);
-                let s = std::str::from_utf8_unchecked(bytes);
+                let bytes = core::slice::from_raw_parts(base.add(read), remaining);
+                let s = core::str::from_utf8_unchecked(bytes);
                 let ch = s.chars().next().expect("valid UTF-8");
                 let ch_len = ch.len_utf8();
                 self.read += ch_len;
@@ -1827,6 +1845,7 @@ impl<const N: usize> TryFrom<&mut str> for InplaceString<N> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<const N: usize> TryFrom<String> for InplaceString<N> {
     type Error = InplaceError;
 
@@ -1886,7 +1905,7 @@ impl<const N: usize> TryFrom<char> for InplaceString<N> {
 }
 
 impl<const N: usize> TryFrom<InplaceVector<u8, N>> for InplaceString<N> {
-    type Error = std::str::Utf8Error;
+    type Error = core::str::Utf8Error;
 
     /// Attempts to create an `InplaceString` from an `InplaceVector` of bytes.
     ///
@@ -1907,12 +1926,12 @@ impl<const N: usize> TryFrom<InplaceVector<u8, N>> for InplaceString<N> {
     /// ```
     #[inline]
     fn try_from(value: InplaceVector<u8, N>) -> Result<Self, Self::Error> {
-        let str = std::str::from_utf8(&value)?;
+        let str = core::str::from_utf8(&value)?;
 
         let mut result = InplaceString::new();
 
         unsafe {
-            std::ptr::copy_nonoverlapping(str.as_ptr(), result.data.as_mut_ptr(), str.len());
+            core::ptr::copy_nonoverlapping(str.as_ptr(), result.data.as_mut_ptr(), str.len());
             result.set_len(str.len());
         };
 
@@ -1920,6 +1939,7 @@ impl<const N: usize> TryFrom<InplaceVector<u8, N>> for InplaceString<N> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<const N: usize> TryFrom<&std::ffi::CStr> for InplaceString<N> {
     type Error = InplaceUtf8Error;
 
@@ -1945,6 +1965,7 @@ impl<const N: usize> TryFrom<&std::ffi::CStr> for InplaceString<N> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<const N: usize> TryFrom<std::ffi::CString> for InplaceString<N> {
     type Error = InplaceUtf8Error;
 
@@ -2071,6 +2092,7 @@ impl<const N: usize> FromStr for InplaceString<N> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<const N: usize> From<InplaceString<N>> for String {
     /// Converts an `InplaceString` into a `String`.
     ///
@@ -2104,7 +2126,7 @@ impl<const N: usize> Hash for InplaceString<N> {
     /// s.hash(&mut hasher);
     /// ```
     #[inline]
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state);
     }
 }
@@ -2122,7 +2144,7 @@ impl<const N: usize> PartialOrd for InplaceString<N> {
     /// assert!(a < b);
     /// ```
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -2140,7 +2162,7 @@ impl<const N: usize> Ord for InplaceString<N> {
     /// assert!(a.cmp(&b).is_lt());
     /// ```
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.as_str().cmp(other)
     }
 }
@@ -2163,15 +2185,15 @@ impl<const N: usize> Write for InplaceString<N> {
     /// assert_eq!(s, "hi");
     /// ```
     #[inline]
-    fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        self.try_push_str(s).map_err(|_| std::fmt::Error)?;
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.try_push_str(s).map_err(|_| fmt::Error)?;
         Ok(())
     }
 }
 
-impl<const N: usize, I> std::ops::Index<I> for InplaceString<N>
+impl<const N: usize, I> core::ops::Index<I> for InplaceString<N>
 where
-    I: std::slice::SliceIndex<str>,
+    I: core::slice::SliceIndex<str>,
 {
     type Output = I::Output;
 
@@ -2195,9 +2217,9 @@ where
     }
 }
 
-impl<const N: usize, I> std::ops::IndexMut<I> for InplaceString<N>
+impl<const N: usize, I> core::ops::IndexMut<I> for InplaceString<N>
 where
-    I: std::slice::SliceIndex<str>,
+    I: core::slice::SliceIndex<str>,
 {
     /// Mutably indexes into the string.
     ///
@@ -2279,7 +2301,7 @@ impl<const N: usize> AsRef<str> for InplaceString<N> {
     }
 }
 
-impl<const N: usize> std::borrow::Borrow<str> for InplaceString<N> {
+impl<const N: usize> core::borrow::Borrow<str> for InplaceString<N> {
     /// Borrows the string as a `str`.
     ///
     /// # Examples
@@ -2298,7 +2320,7 @@ impl<const N: usize> std::borrow::Borrow<str> for InplaceString<N> {
     }
 }
 
-impl<const N: usize> std::borrow::BorrowMut<str> for InplaceString<N> {
+impl<const N: usize> core::borrow::BorrowMut<str> for InplaceString<N> {
     /// Mutably borrows the string as a `str`.
     ///
     /// # Examples
@@ -2423,7 +2445,7 @@ impl<const N: usize> Debug for InplaceString<N> {
     /// assert!(out.contains("hi"));
     /// ```
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(concat!("InplaceString<", stringify!(N), ">"))
             .field("string", &self.as_str())
             .field("size", &self.len())
@@ -2431,7 +2453,7 @@ impl<const N: usize> Debug for InplaceString<N> {
     }
 }
 
-impl<const N: usize> std::fmt::Display for InplaceString<N> {
+impl<const N: usize> fmt::Display for InplaceString<N> {
     /// Formats the string using the display formatter.
     ///
     /// # Examples
@@ -2443,7 +2465,7 @@ impl<const N: usize> std::fmt::Display for InplaceString<N> {
     /// assert_eq!(format!("{}", s), "hi");
     /// ```
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
     }
 }
@@ -2548,6 +2570,7 @@ impl<'a, const N: usize> Extend<&'a str> for InplaceString<N> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<const N: usize> Extend<String> for InplaceString<N> {
     /// Extends the string with owned strings from an iterator.
     ///
@@ -2616,6 +2639,8 @@ impl BoundedDisplay for i64 {}
 
 impl BoundedDisplay for usize {}
 
+impl BoundedDisplay for isize {}
+
 impl BoundedDisplay for bool {}
 
 impl BoundedDisplay for char {}
@@ -2625,6 +2650,9 @@ mod tests {
     use super::*;
     use crate::inplace_string;
     use core::mem::size_of;
+    use std::dbg;
+    use std::format;
+    use std::string::{String, ToString};
 
     const CAP: usize = 16;
 
@@ -2635,6 +2663,7 @@ mod tests {
             size_of::<Option<InplaceString<CAP>>>(),
             size_of::<InplaceString<CAP>>()
         );
+        assert_eq!(InplaceString::<CAP>::CAPACITY, CAP);
     }
 
     #[test]
@@ -2698,6 +2727,16 @@ mod tests {
         let s = value.to_inplace_string();
         assert_eq!(s, "123456789");
         assert!(value.to_string().len() <= 20);
+    }
+
+    #[test]
+    #[inline]
+    fn test_isize_bounded_display() {
+        for value in [isize::MIN, isize::MAX] {
+            let s = value.to_inplace_string();
+            assert_eq!(s.as_str(), value.to_string());
+            assert!(value.to_string().len() <= 20);
+        }
     }
 
     #[test]
@@ -3118,6 +3157,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     #[inline]
     fn test_try_from_various() {
         let s: InplaceString<CAP> = "hello".try_into().unwrap();

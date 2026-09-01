@@ -65,8 +65,9 @@ macro_rules! inplace_string {
     ($lit:literal) => {{
         const CAP: usize = $lit.len();
         let mut s = $crate::InplaceString::<CAP>::new();
+        let value = $lit;
         unsafe {
-            s.unchecked_push_str($lit);
+            s.unchecked_push_str(value);
         }
         s
     }};
@@ -83,8 +84,9 @@ macro_rules! inplace_string {
             )
         );
         let mut s = $crate::InplaceString::<$cap>::new();
+        let value = $lit;
         unsafe {
-            s.unchecked_push_str($lit);
+            s.unchecked_push_str(value);
         }
         s
     }};
@@ -97,6 +99,13 @@ fn foo() {
     assert_eq!(string.capacity(), 4);
     assert_eq!(string.len(), 4);
     assert_eq!(string, "test");
+}
+
+#[test]
+fn const_literal() {
+    const STRING: crate::InplaceString<4> = inplace_string!("test");
+
+    assert_eq!(STRING.as_str(), "test");
 }
 
 #[test]

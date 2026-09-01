@@ -99,8 +99,15 @@ macro_rules! inplace_vec {
     };
 
     ($($elem:expr),+ $(,)?) => {{
+        const COUNT: usize = $crate::__count!($($elem),*);
         let array = [$($elem),*];
-        InplaceVector::from(array)
+        let mut v = InplaceVector::<_, COUNT>::new();
+        unsafe {
+            core::ptr::copy_nonoverlapping(array.as_ptr(), v.as_mut_ptr(), COUNT);
+            v.set_len(COUNT);
+        }
+        let _ = core::mem::ManuallyDrop::new(array);
+        v
     }};
 
 
@@ -115,19 +122,13 @@ macro_rules! inplace_vec {
             )
         );
 
-        let array = core::mem::ManuallyDrop::new([$($elem),*]);
-
+        let array = [$($elem),*];
         let mut v = InplaceVector::<_, $cap>::new();
-
         unsafe {
-            // for deduction
-            let mut _tmp = array.as_ptr();
-            _tmp = v.as_ptr();
-
             core::ptr::copy_nonoverlapping(array.as_ptr(), v.as_mut_ptr(), COUNT);
             v.set_len(COUNT);
-        };
-
+        }
+        let _ = core::mem::ManuallyDrop::new(array);
         v
     }};
 
