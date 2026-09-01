@@ -15,8 +15,23 @@
 - Clone, Debug, PartialEq, Hash, Ord, and conversions implemented.
 - UTF-8 correctness for `InplaceString`.
 - Niche-optimized layout keeps `Option<InplaceString<N>>` the same size as `InplaceString<N>` and `Option<InplaceVector<T, N>>` the same size as `InplaceVector<T, N>`.
-- Compile-time capacity checks with `inplace_vec!` macro.
+- Compile-time construction and capacity checks with the `inplace_vec!` and `inplace_string!` macros.
+- `ToInplaceOwned` support for fixed-size arrays and wrappers that dereference to arrays.
+- `no_std` support when default features are disabled.
 - Optional `nightly` feature enables unstable Pattern-gated APIs (requires nightly Rust).
+
+---
+
+## `no_std`
+
+The default features are `all` and `std`. To use the containers without the standard library, disable default features and select the containers you need:
+
+```toml
+[dependencies]
+inplace_containers = { version = "0.4.0", default-features = false, features = ["all"] }
+```
+
+The `std` feature enables integrations that require the standard library, such as `std::io::Write`, `String` conversions, C string conversions, and `std::error::Error` implementations.
 
 ---
 
@@ -26,7 +41,7 @@ To enable unstable Pattern-gated APIs, build with nightly and the `nightly` feat
 
 ```toml
 [dependencies]
-inplace_containers = { version = "0.3.5", features = ["nightly"] }
+inplace_containers = { version = "0.4.0", features = ["nightly"] }
 ```
 
 ```sh
@@ -57,6 +72,15 @@ let last = vec.pop();
 assert_eq!(last, Some(5));
 ```
 
+Const construction is supported for literal vectors:
+
+```rust
+use inplace_containers::inplace_vec;
+
+const VALUES: inplace_containers::InplaceVector<i32, 3> = inplace_vec![1, 2, 3];
+assert_eq!(VALUES, &[1, 2, 3]);
+```
+
 **Key methods reference:**
 
 | Method | Signature | Description |
@@ -65,6 +89,7 @@ assert_eq!(last, Some(5));
 | `len` | `fn len(&self) -> usize` | Returns current length |
 | `is_empty` | `fn is_empty(&self) -> bool` | Checks if vector is empty |
 | `is_full` | `fn is_full(&self) -> bool` | Checks if vector reached capacity |
+| `CAPACITY` | `const CAPACITY: usize` | Compile-time fixed capacity |
 | `capacity` | `fn capacity(&self) -> usize` | Returns fixed capacity |
 | `remaining_capacity` | `fn remaining_capacity(&self) -> usize` | Returns remaining capacity |
 | `push` | `fn push(&mut self, value: T)` | Adds element, panics if full |
@@ -78,6 +103,16 @@ assert_eq!(last, Some(5));
 | `clear` | `fn clear(&mut self)` | Removes all elements |
 | `split_off` | `fn split_off(&mut self, at: usize) -> Self` | Splits vector at index |
 | `drain` | `fn drain<R>(&mut self, range: R) -> InplaceVector<T, N>` | Extracts range |
+
+Fixed-size arrays can be cloned into an `InplaceVector`. The trait is also available through wrappers that dereference to an array:
+
+```rust
+use inplace_containers::prelude::*;
+
+let values = [1, 2, 3];
+let vector = values.to_inplace_owned();
+assert_eq!(vector, &[1, 2, 3]);
+```
 
 ---
 
@@ -98,6 +133,15 @@ assert_eq!(s.len(), 10);
 assert_eq!(s.as_str(), "hello rust");
 ```
 
+Const construction is supported for string literals:
+
+```rust
+use inplace_containers::{inplace_string, InplaceString};
+
+const VALUE: InplaceString<5> = inplace_string!("hello");
+assert_eq!(VALUE, "hello");
+```
+
 **Key methods reference:**
 
 | Method | Signature | Description |
@@ -105,6 +149,7 @@ assert_eq!(s.as_str(), "hello rust");
 | `new` | `fn new() -> Self` | Creates an empty string |
 | `len` | `fn len(&self) -> usize` | Returns length in bytes |
 | `is_empty` | `fn is_empty(&self) -> bool` | Checks if empty |
+| `CAPACITY` | `const CAPACITY: usize` | Compile-time fixed capacity in bytes |
 | `capacity` | `fn capacity(&self) -> usize` | Returns fixed capacity |
 | `remaining_capacity` | `fn remaining_capacity(&self) -> usize` | Returns remaining capacity |
 | `push` | `fn push(&mut self, ch: char)` | Appends a char, panics if full |
@@ -125,13 +170,27 @@ assert_eq!(s.as_str(), "hello rust");
 
 ---
 
+### Bounded formatting
+
+`BoundedDisplay::to_inplace_string()` formats values directly into an `InplaceString<20>`. It is implemented for integer types through `isize`, as well as `bool` and `char`:
+
+```rust
+use inplace_containers::BoundedDisplay;
+
+let value = isize::MIN;
+let string = value.to_inplace_string();
+assert_eq!(string.as_str(), value.to_string());
+```
+
+---
+
 ### Macros
 
 - `inplace_string![CAP; "literal"]` - creates an `InplaceString` with explicit capacity.
 - `inplace_string![CAP;]` - creates an empty `InplaceString` with explicit capacity.
 
 - `inplace_vec![...]` – stack-allocated vector creation with optional compile-time capacity checking.
-- `inplace_string!("...")` – creates an `InplaceString` from a literal.
+- `inplace_string!("...")` – creates an `InplaceString` from a literal, including in const contexts.
 
 ```rust
 use inplace_containers::{inplace_vec, inplace_string};
