@@ -2829,7 +2829,7 @@ mod tests {
         ];
 
         assert_eq!(deduced_size.capacity(), 5);
-        assert!(deduced_size.iter().eq(&["1", "2", "3", "4", "5"]));
+        assert!(deduced_size.iter().eq(["1", "2", "3", "4", "5"]));
 
         let specific_size = inplace_vec![
             8;
@@ -2841,7 +2841,7 @@ mod tests {
         ];
 
         assert_eq!(specific_size.capacity(), 8);
-        assert!(specific_size.iter().eq(&["1", "2", "3", "4", "5"]));
+        assert!(specific_size.iter().eq(["1", "2", "3", "4", "5"]));
 
         let one_element_vec = inplace_vec![42];
 
